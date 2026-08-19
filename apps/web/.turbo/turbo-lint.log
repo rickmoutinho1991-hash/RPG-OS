@@ -1,0 +1,6 @@
+
+> apps/web@1.0.0 lint D:\Projetos\RPG-OS\apps\web
+> next lint
+
+Invalid project directory provided, no such directory: D:\Projetos\RPG-OS\apps\web\lint
+ ELIFECYCLE  Command failed with exit code 1.
