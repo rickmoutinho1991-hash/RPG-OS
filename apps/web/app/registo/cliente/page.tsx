@@ -1,9 +1,11 @@
+﻿import { criarCliente } from "../actions/cliente";
+
 export default function ClienteRegistoPage() {
   return (
     <main>
       <h1>Registo — Cliente particular</h1>
 
-      <form>
+      <form action={criarCliente}>
         <label>
           Nome completo
           <input name="nome" required />
@@ -11,7 +13,13 @@ export default function ClienteRegistoPage() {
 
         <label>
           NIF
-          <input name="nif" inputMode="numeric" required />
+          <input
+            name="nif"
+            inputMode="numeric"
+            pattern="[0-9]{9}"
+            maxLength={9}
+            required
+          />
         </label>
 
         <label>
