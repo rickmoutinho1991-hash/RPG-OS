@@ -214,7 +214,7 @@ export default function LoginForm({ demoEnabled }: { demoEnabled: boolean }) {
             {demoEnabled && (
               <div style={{ marginTop: "12px", textAlign: "center" }}>
                 <Link
-                  href="/dashboard"
+                  href="/dashboard?demo=1"
                   className="button secondary full-width"
                   style={{ fontSize: "12px", padding: "8px" }}
                 >

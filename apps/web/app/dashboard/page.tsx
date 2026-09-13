@@ -3,16 +3,27 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { DemoDashboard } from "@/components/demo/DemoDashboard";
+import { isDemoRequest } from "@/lib/demoGate";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ demo?: string }>;
+}) {
   const user = await getCurrentUser();
   const demoEnabled = process.env.ALLOW_DEMO_ACCESS === "true";
-  if (!user && !demoEnabled) redirect("/login");
+  const params = searchParams ? await searchParams : {};
+  const demoRequested = isDemoRequest(demoEnabled, params.demo);
+
+  if (!user && !demoRequested) redirect("/login");
+  if (!user && demoRequested) return <DemoDashboard />;
+
   const supabase = createAdminClient();
 
-  const userId = user?.id || "00000000-0000-0000-0000-000000000000";
+  const userId = user?.id ?? "";
   const companyId = user?.companyId;
 
   let projectsQuery = supabase
