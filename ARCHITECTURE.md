@@ -14,6 +14,7 @@ A organização ativa é escolhida por cookie apenas entre memberships válidas 
 - Core (`packages/core/src/memory`): porta `MemoryStore` e `MemoryService` fail-closed (recusa actorId vazio, kind fora do enum e valores null/array).
 - Web (`apps/web/lib/memory/supabaseStore.ts`): adapter `SupabaseMemoryStore` com admin client e filtro obrigatório por `user_id`.
 - Rota `/api/memories` (GET/POST/DELETE) com `getSessionContext` — **401 sem sessão**. Editor de memória no Perfil; silêncio de categorias do briefing via preferência `muted_categories`.
+- **Mutações auditadas (M3)**: cada POST/DELETE em `/api/memories` regista um evento em `audit_logs` com `{action, key, kind, actorId}` (timestamp server-side) via `recordAuditEvent`, **sem nunca persistir o value** no rasto. Ações canónicas: `MEMORY_ENTRY_SET` / `MEMORY_ENTRY_DELETED`. Falha de audit **não bloqueia** a mutação — o dado é do utilizador, protegido por RLS; o erro é logado server-side (`console.error`) e a resposta mantém 200/400.
 
 ## Service Worker auto-versionado
 - `apps/web/scripts/stamp-sw-version.mjs` gera `public/sw-version.json` no build (`{"v":"<timestamp>-<short-git-sha>"}`; artefacto gitignored, nunca editado à mão).
