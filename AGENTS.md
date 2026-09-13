@@ -3,12 +3,12 @@
 ## ESTADO ATUAL DO PROGRAMA (HANDOFF VIVO)
 > Auto-manutenção: no fecho de CADA ciclo ou vaga de commits, atualizar HEAD, contagens de gates e menu desta secção (máx 40 linhas). Doutrina completa: secção própria abaixo — nunca duplicar aqui.
 
-- HEAD selado: 4edd01d (13-09-2026) | árvore limpa | V1 clone-fresco GREEN
+- HEAD selado: 156ae3f (13-09-2026) | árvore limpa | V1 clone-fresco GREEN
 - Gates de referência: 4x exit 0 — 108 files / 1725 passed / 6 skipped
-- Subsistemas: landing pública (demo fictícia marcada, zero Supabase público) · briefing cross-domain §38 com mute via memória · memória IA (user_memories, RLS owner-only, audit sem value) · SW auto-version (sw-version.json gerado no build) · Capacitor PREPARED_ONLY (android/ tracked, APK bloqueado por SSR)
-- DB: migrações commitadas; DEV aplicado até 20260913100000_create_user_memories; PROD nunca automático (Regra #99)
+- Subsistemas: landing pública (demo fictícia marcada, zero Supabase público) · briefing cross-domain §38 com mute via memória · memória IA (user_memories, RLS owner-only, audit sem value) · RLS 100% tabelas public (S1+S2, health service-only) · modo demo gated por ALLOW_DEMO_ACCESS (dev-only) · SW auto-version (sw-version.json gerado no build) · Capacitor PREPARED_ONLY (android/ tracked, APK bloqueado por SSR)
+- DB: migrações commitadas; DEV aplicado até 20260913170000_enable_rls_health + reconciliação schema_migrations completa; PROD nunca automático (Regra #99)
 - Toolchain: pnpm 11 + onlyBuiltDependencies commitado; prisma NÃO é dependência (tipos de fonte commitada); suspeita de toolchain → clone fresco em $env:TEMP, nunca confiar em node_modules
-- Docs de referência: docs/DEPLOY.md (prod HTTPS + verificação), docs/DATABASE.md ou DATABASE.md raiz (migrações), ARCHITECTURE.md (subsistemas)
+- Docs de referência: docs/DEPLOY.md (prod HTTPS + ALLOW_DEMO_ACCESS nunca em prod), docs/DATABASE.md ou DATABASE.md raiz (migrações), ARCHITECTURE.md (subsistemas + RLS least-privilege)
 - MENU: B2 = APK wrapper remoto (SÓ com deploy HTTPS próprio existente) · push remoto PENDENTE de autorização do owner (git push -u origin HEAD)
 - Modo: MANUTENÇÃO — novos ciclos só por ordem explícita do owner
 

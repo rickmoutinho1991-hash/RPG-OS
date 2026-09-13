@@ -6,6 +6,8 @@ import { MarketCycleStepper } from "@/components/public/MarketCycleStepper";
 import { MultiActorTabs } from "@/components/public/MultiActorTabs";
 import { MemoryControlPreview } from "@/components/public/MemoryControlPreview";
 import { PublicCTA } from "@/components/public/PublicCTA";
+import { PublicAnchorNav } from "@/components/public/PublicAnchorNav";
+import { CapabilitiesShowcase } from "@/components/public/CapabilitiesShowcase";
 import {
   resolveMode,
   getHeadline,
@@ -43,25 +45,51 @@ export default async function CommandCenterPage() {
   if (!ctx) {
     return (
       <main>
+        <PublicAnchorNav />
+
         <div
           className="card"
-          style={{ textAlign: "center", padding: "48px 24px" }}
+          style={{
+            textAlign: "center",
+            padding: "clamp(40px, 8vw, 72px) 24px",
+            background:
+              "linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #172554 100%)",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+          }}
         >
+          <span
+            style={{
+              display: "inline-block",
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "2px",
+              textTransform: "uppercase",
+              color: "#93c5fd",
+              marginBottom: "14px",
+            }}
+          >
+            Life &amp; Business OS
+          </span>
           <h1
-            style={{ fontSize: "clamp(26px, 4vw, 40px)", margin: "0 0 12px" }}
+            style={{
+              fontSize: "clamp(28px, 5vw, 46px)",
+              margin: "0 0 14px",
+              lineHeight: 1.15,
+            }}
           >
             Um único lugar para a sua vida e o seu trabalho.
           </h1>
           <p
             style={{
-              color: "var(--muted)",
               maxWidth: "640px",
-              margin: "0 auto 24px",
+              margin: "0 auto 26px",
+              color: "#cbd5e1",
             }}
           >
-            O RPG-OS organiza tarefas, agenda, documentos, finanças e
-            comunicação — para si, para a sua família ou para toda a
-            organização. Começa simples e cresce consigo.
+            O RPG-OS organiza tarefas, agenda, documentos, finanças e comunicação
+            — para si, para a sua família ou para toda a organização. Começa
+            simples e cresce consigo.
           </p>
           <div
             style={{
@@ -71,21 +99,41 @@ export default async function CommandCenterPage() {
               flexWrap: "wrap",
             }}
           >
-            <Link href="/login" className="button">
-              Entrar no RPG-OS
-            </Link>
-            <Link href="/registo" className="button secondary">
+            <Link href="/registo" className="button">
               Criar conta gratuita
+            </Link>
+            <Link href="/dashboard?demo=1" className="button secondary">
+              Ver demonstração
             </Link>
           </div>
         </div>
 
-        <div style={{ marginTop: "32px", display: "grid", gap: "24px" }}>
-          <BriefingDemo />
-          <MarketCycleStepper />
-          <MultiActorTabs />
-          <MemoryControlPreview />
-          <PublicCTA />
+        <div style={{ marginTop: "40px", display: "grid", gap: "32px" }}>
+          <CapabilitiesShowcase />
+
+          <section
+            id="mercado"
+            aria-label="Mercado de serviços"
+            style={{ display: "grid", gap: "8px" }}
+          >
+            <DemoBadge />
+            <MarketCycleStepper />
+          </section>
+
+          <section id="por-dentro" aria-label="Por dentro do produto" style={{ display: "grid", gap: "8px" }}>
+            <DemoBadge />
+            <BriefingDemo />
+            <MultiActorTabs />
+          </section>
+
+          <section id="memoria" aria-label="Memória com controlo" style={{ display: "grid", gap: "8px" }}>
+            <DemoBadge />
+            <MemoryControlPreview />
+          </section>
+
+          <section id="entrar">
+            <PublicCTA />
+          </section>
         </div>
       </main>
     );
@@ -472,6 +520,17 @@ function modeLabel(mode: string): string {
     EMPLOYEE: "Colaborador",
   };
   return labels[mode] ?? mode;
+}
+
+function DemoBadge() {
+  return (
+    <span
+      className="badge warning"
+      style={{ alignSelf: "center", fontSize: "11px", padding: "4px 10px" }}
+    >
+      Demonstração · dados fictícios
+    </span>
+  );
 }
 
 function EmptyState({
