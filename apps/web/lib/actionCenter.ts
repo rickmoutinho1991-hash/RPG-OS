@@ -17,6 +17,16 @@ export interface ActionAlert {
   title: string;
   detail?: string;
   href: string;
+  category: string;
+}
+
+/** Executa uma query de domínio com fail-safe: erro → [] (zero itens). */
+export async function safeDomainQuery<T>(fn: () => Promise<T[]>): Promise<T[]> {
+  try {
+    return (await fn()) ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function collectActionAlerts(
@@ -32,34 +42,87 @@ export async function collectActionAlerts(
   const userId = ctx.user.id;
   const alerts: ActionAlert[] = [];
 
-  const [overdueTasks, pendingApprovals, unreadNotifs, upcomingEvents] =
-    await Promise.all([
-      // Tarefas atrasadas atribuídas ao utilizador
-      supabase
+  // Fail-safe por domínio: um serviço em erro contribui zero itens e o
+  // briefing nunca cai. Cada bloco reutiliza APENAS queries existentes.
+
+  // 1. Tarefas atrasadas → tarefas (não silenciável)
+  {
+    const tasks = await safeDomainQuery(async () => {
+      const { data } = await supabase
         .from("tasks")
         .select("id, title, due_date, priority")
         .eq("assignee_id", userId)
         .not("status", "in", "(DONE,CANCELLED)")
         .lt("due_date", new Date().toISOString())
         .order("due_date", { ascending: true })
-        .limit(5),
-      // Aprovações pendentes para o utilizador
-      supabase
+        .limit(5);
+      return data ?? [];
+    });
+
+    for (const t of tasks) {
+      alerts.push({
+        id: `task-${t.id}`,
+        severity: t.priority === "URGENT" ? "URGENT" : "WARNING",
+        title: "Tarefa atrasada",
+        detail: t.title,
+        href: "/tarefas",
+        category: "tarefas",
+      });
+    }
+  }
+
+  // 2. Aprovações pendentes → aprovacoes
+  {
+    const approvals = await safeDomainQuery(async () => {
+      const { data } = await supabase
         .from("workflow_instances")
         .select("id, entity_type, entity_id, created_at")
         .eq("approver_id", userId)
         .eq("status", "PENDING")
-        .limit(5),
-      // Notificações urgentes não lidas
-      supabase
+        .limit(5);
+      return data ?? [];
+    });
+
+    for (const w of approvals) {
+      alerts.push({
+        id: `wf-${w.id}`,
+        severity: "INFO",
+        title: "Pedido à sua espera de aprovação",
+        detail: w.entity_type,
+        href: "/aprovacoes",
+        category: "aprovacoes",
+      });
+    }
+  }
+
+  // 3. Notificações urgentes não lidas → notificacoes (não silenciável)
+  {
+    const notifs = await safeDomainQuery(async () => {
+      const { data } = await supabase
         .from("notifications")
         .select("id, title, link, category")
         .eq("user_id", userId)
         .is("read_at", null)
         .in("category", ["URGENT", "SECURITY"])
-        .limit(5),
-      // Eventos nas próximas 24h
-      supabase
+        .limit(5);
+      return data ?? [];
+    });
+
+    for (const n of notifs) {
+      alerts.push({
+        id: `notif-${n.id}`,
+        severity: n.category === "SECURITY" ? "URGENT" : "WARNING",
+        title: n.title,
+        href: n.link || "/notificacoes",
+        category: "notificacoes",
+      });
+    }
+  }
+
+  // 4. Eventos nas próximas 24h → agenda (não silenciável)
+  {
+    const events = await safeDomainQuery(async () => {
+      const { data } = await supabase
         .from("calendar_events")
         .select("id, title, start_time")
         .eq("user_id", userId)
@@ -67,46 +130,20 @@ export async function collectActionAlerts(
         .gte("start_time", new Date().toISOString())
         .lte("start_time", new Date(Date.now() + 24 * 3600_000).toISOString())
         .order("start_time", { ascending: true })
-        .limit(3),
-    ]);
-
-  for (const t of overdueTasks.data ?? []) {
-    alerts.push({
-      id: `task-${t.id}`,
-      severity: t.priority === "URGENT" ? "URGENT" : "WARNING",
-      title: "Tarefa atrasada",
-      detail: t.title,
-      href: "/tarefas",
+        .limit(3);
+      return data ?? [];
     });
-  }
 
-  for (const w of pendingApprovals.data ?? []) {
-    alerts.push({
-      id: `wf-${w.id}`,
-      severity: "INFO",
-      title: "Pedido à sua espera de aprovação",
-      detail: w.entity_type,
-      href: "/aprovacoes",
-    });
-  }
-
-  for (const n of unreadNotifs.data ?? []) {
-    alerts.push({
-      id: `notif-${n.id}`,
-      severity: n.category === "SECURITY" ? "URGENT" : "WARNING",
-      title: n.title,
-      href: n.link || "/notificacoes",
-    });
-  }
-
-  for (const e of upcomingEvents.data ?? []) {
-    alerts.push({
-      id: `event-${e.id}`,
-      severity: "INFO",
-      title: "Compromisso nas próximas 24 horas",
-      detail: `${e.title} • ${new Date(e.start_time).toLocaleString("pt-PT")}`,
-      href: "/agenda",
-    });
+    for (const e of events) {
+      alerts.push({
+        id: `event-${e.id}`,
+        severity: "INFO",
+        title: "Compromisso nas próximas 24 horas",
+        detail: `${e.title} • ${new Date(e.start_time).toLocaleString("pt-PT")}`,
+        href: "/agenda",
+        category: "agenda",
+      });
+    }
   }
 
   // Alertas financeiros: tabelas do eixo company/user (finance_bills,
@@ -131,55 +168,81 @@ export async function collectActionAlerts(
           `owner_user_id.eq.${userId}`,
       );
     };
-    const [overdueBillsRes, dueSoonBillsRes, expiringDocsRes] = await Promise.all([
-      scopedBills()
-        .neq("status", "PAID")
-        .lt("due_date", now.toISOString())
-        .order("due_date", { ascending: true })
-        .limit(3),
-      scopedBills()
-        .neq("status", "PAID")
-        .gte("due_date", now.toISOString())
-        .lte("due_date", new Date(now.getTime() + 7 * 86400_000).toISOString())
-        .order("due_date", { ascending: true })
-        .limit(3),
-      scopedDocs()
-        .not("status", "eq", "EXPIRED")
-        .not("expires_at", "is", null)
-        .gte("expires_at", now.toISOString())
-        .lte("expires_at", new Date(now.getTime() + 14 * 86400_000).toISOString())
-        .order("expires_at", { ascending: true })
-        .limit(3),
-    ]);
 
-    for (const b of overdueBillsRes.data ?? []) {
-      alerts.push({
-        id: `bill-overdue-${b.id}`,
-        severity: "URGENT",
-        title: "Conta vencida",
-        detail: `${b.name} — ${Number(b.amount).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} €`,
-        href: "/financas",
-      });
+    // 5. Contas vencidas/a vencer → finance
+    {
+      const [overdueBills, dueSoonBills] = await Promise.all([
+        safeDomainQuery(async () => {
+          const { data } = await scopedBills()
+            .neq("status", "PAID")
+            .lt("due_date", now.toISOString())
+            .order("due_date", { ascending: true })
+            .limit(3);
+          return data ?? [];
+        }),
+        safeDomainQuery(async () => {
+          const { data } = await scopedBills()
+            .neq("status", "PAID")
+            .gte("due_date", now.toISOString())
+            .lte(
+              "due_date",
+              new Date(now.getTime() + 7 * 86400_000).toISOString(),
+            )
+            .order("due_date", { ascending: true })
+            .limit(3);
+          return data ?? [];
+        }),
+      ]);
+
+      for (const b of overdueBills) {
+        alerts.push({
+          id: `bill-overdue-${b.id}`,
+          severity: "URGENT",
+          title: "Conta vencida",
+          detail: `${b.name} — ${Number(b.amount).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} €`,
+          href: "/financas",
+          category: "finance",
+        });
+      }
+
+      for (const b of dueSoonBills) {
+        alerts.push({
+          id: `bill-soon-${b.id}`,
+          severity: "INFO",
+          title: "Conta a vencer em breve",
+          detail: `${b.name} — ${Number(b.amount).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} € • ${new Date(b.due_date).toLocaleDateString("pt-PT")}`,
+          href: "/financas",
+          category: "finance",
+        });
+      }
     }
 
-    for (const b of dueSoonBillsRes.data ?? []) {
-      alerts.push({
-        id: `bill-soon-${b.id}`,
-        severity: "INFO",
-        title: "Conta a vencer em breve",
-        detail: `${b.name} — ${Number(b.amount).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} € • ${new Date(b.due_date).toLocaleDateString("pt-PT")}`,
-        href: "/financas",
+    // 6. Documentos a expirar → docs
+    {
+      const docs = await safeDomainQuery(async () => {
+        const { data } = await scopedDocs()
+          .not("status", "eq", "EXPIRED")
+          .not("expires_at", "is", null)
+          .gte("expires_at", now.toISOString())
+          .lte(
+            "expires_at",
+            new Date(now.getTime() + 14 * 86400_000).toISOString(),
+          )
+          .order("expires_at", { ascending: true })
+          .limit(3);
+        return data ?? [];
       });
-    }
 
-    for (const d of expiringDocsRes.data ?? []) {
-      alerts.push({
-        id: `doc-expiring-${d.id}`,
-        severity: "WARNING",
-        title: "Documento a expirar",
-        detail: `${d.file_name} • expira a ${new Date(d.expires_at).toLocaleDateString("pt-PT")}`,
-        href: "/documentos",
-      });
+      for (const d of docs) {
+        alerts.push({
+          id: `doc-expiring-${d.id}`,
+          severity: "WARNING",
+          title: "Documento a expirar",
+          detail: `${d.file_name} • expira a ${new Date(d.expires_at).toLocaleDateString("pt-PT")}`,
+          href: "/documentos",
+          category: "docs",
+        });
+      }
     }
   }
 
@@ -195,6 +258,7 @@ export async function collectActionAlerts(
 
 export interface BriefingLine {
   id: string;
+  category: string;
   href: string;
   severity: ActionAlert["severity"];
   fact: string;
@@ -226,20 +290,25 @@ export function composeBriefingLines(
   opts?: { mutedCategories?: string[] },
 ): BriefingReport {
   const muted = new Set(opts?.mutedCategories ?? []);
-  const visible = items.filter((a) => !muted.has(kindOf(a.id)));
+  const visible = items.filter((a) => !muted.has(alertCategory(a)));
   const lines = visible.map(composeBriefingLine);
-  const silencedKinds = new Set(
+  const silencedCategories = new Set(
     items
-      .filter((a) => muted.has(kindOf(a.id)))
-      .map((a) => kindOf(a.id)),
+      .filter((a) => muted.has(alertCategory(a)))
+      .map((a) => alertCategory(a)),
   );
   const summary =
-    silencedKinds.size > 0
-      ? `Segundo a tua memória: ${silencedKinds.size} ${
-          silencedKinds.size === 1 ? "categoria" : "categorias"
-        } silenciada${silencedKinds.size === 1 ? "" : "s"}.`
+    silencedCategories.size > 0
+      ? `Segundo a tua memória: ${silencedCategories.size} ${
+          silencedCategories.size === 1 ? "categoria" : "categorias"
+        } silenciada${silencedCategories.size === 1 ? "" : "s"}.`
       : undefined;
   return { lines, summary };
+}
+
+/** Categoria efetiva de um alerta: usa a explícita ou deriva do prefixo do id. */
+export function alertCategory(a: ActionAlert): string {
+  return a.category ?? kindOf(a.id);
 }
 
 function kindOf(id: string): string {
@@ -248,12 +317,16 @@ function kindOf(id: string): string {
 
 function composeBriefingLine(a: ActionAlert): BriefingLine {
   const kind = kindOf(a.id);
+  const base = {
+    id: a.id,
+    category: alertCategory(a),
+    href: a.href,
+    severity: a.severity,
+  };
   switch (kind) {
     case "task": {
       return {
-        id: a.id,
-        href: a.href,
-        severity: a.severity,
+        ...base,
         fact: `A tarefa "${a.detail ?? a.title}" está atrasada.`,
         inference: "Inferência: se não for resolvida hoje, pode bloquear o que se segue.",
         recommendation:
@@ -264,18 +337,14 @@ function composeBriefingLine(a: ActionAlert): BriefingLine {
     }
     case "wf": {
       return {
-        id: a.id,
-        href: a.href,
-        severity: a.severity,
+        ...base,
         fact: `Pedido de aprovação (${a.detail ?? "sem tipo"}) aguarda a sua decisão.`,
         recommendation: "Aprove ou rejeite o pedido em aberto.",
       };
     }
     case "notif": {
       return {
-        id: a.id,
-        href: a.href,
-        severity: a.severity,
+        ...base,
         fact: `Notificação não lida: ${a.title}.`,
         recommendation:
           a.severity === "URGENT"
@@ -285,9 +354,7 @@ function composeBriefingLine(a: ActionAlert): BriefingLine {
     }
     case "event": {
       return {
-        id: a.id,
-        href: a.href,
-        severity: a.severity,
+        ...base,
         fact: `Compromisso marcado: ${a.detail ?? a.title}.`,
         recommendation: "Confirme o seu horário e prepare-se para o compromisso.",
       };
@@ -295,9 +362,7 @@ function composeBriefingLine(a: ActionAlert): BriefingLine {
     case "bill": {
       const overdue = a.id.includes("overdue");
       return {
-        id: a.id,
-        href: a.href,
-        severity: a.severity,
+        ...base,
         fact: overdue
           ? `Conta vencida: ${a.detail ?? a.title}.`
           : `Conta a vencer em breve: ${a.detail ?? a.title}.`,
@@ -311,9 +376,7 @@ function composeBriefingLine(a: ActionAlert): BriefingLine {
     }
     case "doc": {
       return {
-        id: a.id,
-        href: a.href,
-        severity: a.severity,
+        ...base,
         fact: `Documento a expirar: ${a.detail ?? a.title}.`,
         inference: "Inferência: a expiração pode bloquear processos de faturação.",
         recommendation: "Renove ou atualize o documento antes do prazo.",
@@ -321,9 +384,7 @@ function composeBriefingLine(a: ActionAlert): BriefingLine {
     }
     default: {
       return {
-        id: a.id,
-        href: a.href,
-        severity: a.severity,
+        ...base,
         fact: a.title,
       };
     }

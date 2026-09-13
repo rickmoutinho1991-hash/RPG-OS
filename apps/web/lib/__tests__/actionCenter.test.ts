@@ -1,6 +1,6 @@
 /**
- * RPG-OS — composeBriefingLines: separação FACT/INFERENCIA/RECOMENDACAO (§38)
- * e briefing × memória (categorias silenciadas).
+ * RPG-OS — composeBriefingLines: separação FACT/INFERENCIA/RECOMENDACAO (§38),
+ * briefing × memória (categorias silenciadas) e cross-domain com category (P4).
  * Função pura; nenhuma query, nenhuma rede, nenhum fake (exceto ports injectadas).
  */
 import { describe, it, expect } from "vitest";
@@ -14,13 +14,16 @@ import {
   composeBriefingLines,
   loadMutedCategories,
   resolveMutedCategories,
+  safeDomainQuery,
   type ActionAlert,
+  type BriefingLine,
 } from "../actionCenter";
 
 function alert(over: Partial<ActionAlert> & Pick<ActionAlert, "id" | "title">): ActionAlert {
   return {
     severity: "INFO",
     href: "/x",
+    category: "tarefas",
     ...over,
   };
 }
@@ -86,12 +89,12 @@ describe("composeBriefingLines", () => {
 describe("briefing × memória", () => {
   it("categorias silenciadas removem itens e geram inferência no resumo", () => {
     const items: ActionAlert[] = [
-      alert({ id: "bill-overdue-1", severity: "URGENT", title: "Conta vencida", detail: "Eletricidade — 45,90 €" }),
-      alert({ id: "event-7", severity: "INFO", title: "Compromisso hoje", detail: "Reunião • 10:00" }),
-      alert({ id: "task-2", severity: "WARNING", title: "Tarefa atrasada", detail: "Fechar faturação" }),
+      alert({ id: "bill-overdue-1", severity: "URGENT", title: "Conta vencida", detail: "Eletricidade — 45,90 €", category: "finance" }),
+      alert({ id: "event-7", severity: "INFO", title: "Compromisso hoje", detail: "Reunião • 10:00", category: "agenda" }),
+      alert({ id: "task-2", severity: "WARNING", title: "Tarefa atrasada", detail: "Fechar faturação", category: "tarefas" }),
     ];
     const report = composeBriefingLines(items, {
-      mutedCategories: ["bill", "task"],
+      mutedCategories: ["finance", "tarefas"],
     });
     expect(report.lines.map((l) => l.id)).toEqual(["event-7"]);
     expect(report.summary).toBe(
@@ -101,7 +104,7 @@ describe("briefing × memória", () => {
 
   it("categoria silenciada sem itens hoje não remove nada nem gera resumo", () => {
     const items: ActionAlert[] = [
-      alert({ id: "task-2", severity: "WARNING", title: "Tarefa atrasada", detail: "Entregar relatório" }),
+      alert({ id: "task-2", severity: "WARNING", title: "Tarefa atrasada", detail: "Entregar relatório", category: "tarefas" }),
     ];
     const report = composeBriefingLines(items, {
       mutedCategories: ["wf", "doc"],
@@ -142,10 +145,51 @@ describe("briefing × memória", () => {
     expect(await loadMutedCategories(ctx, new MemoryService(failingStore))).toEqual([]);
 
     const report = composeBriefingLines(
-      [alert({ id: "bill-overdue-1", severity: "URGENT", title: "Conta vencida" })],
+      [alert({ id: "bill-overdue-1", severity: "URGENT", title: "Conta vencida", category: "finance" })],
       { mutedCategories: [] },
     );
     expect(report.lines).toHaveLength(1);
     expect(report.summary).toBeUndefined();
+  });
+});
+
+describe("briefing cross-domain (P4)", () => {
+  it("linhas de 2 domínios mantêm fact/severity/category por domínio", () => {
+    const items: ActionAlert[] = [
+      alert({ id: "bill-overdue-9", severity: "URGENT", title: "Conta vencida", detail: "Eletricidade — 45,90 €", category: "finance" }),
+      alert({ id: "doc-expiring-4", severity: "WARNING", title: "Documento a expirar", detail: "Cartão cidadão", category: "docs" }),
+    ];
+    const { lines } = composeBriefingLines(items);
+    expect(lines).toHaveLength(2);
+    const byId = new Map(lines.map((l) => [l.id, l]));
+    const [bill, doc] = [byId.get("bill-overdue-9")!, byId.get("doc-expiring-4")!] as [
+      BriefingLine,
+      BriefingLine,
+    ];
+    expect(bill.category).toBe("finance");
+    expect(bill.severity).toBe("URGENT");
+    expect(bill.fact).toContain("Conta vencida");
+    expect(doc.category).toBe("docs");
+    expect(doc.severity).toBe("WARNING");
+    expect(doc.fact).toContain("Cartão cidadão");
+  });
+
+  it("fail-safe: domínio em erro contribui zero itens sem derrubar os demais", async () => {
+    expect(await safeDomainQuery(async () => [{ id: 1 }])).toEqual([{ id: 1 }]);
+
+    expect(
+      await safeDomainQuery(async () => {
+        throw new Error("base indisponível");
+      }),
+    ).toEqual([]);
+
+    expect(
+      await safeDomainQuery(async () => null as unknown as { id: number }[]),
+    ).toEqual([]);
+
+    const stillAlive = await safeDomainQuery(async () => [
+      { id: "docs-ok" } as { id: string },
+    ]);
+    expect(stillAlive).toEqual([{ id: "docs-ok" }]);
   });
 });

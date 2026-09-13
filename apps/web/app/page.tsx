@@ -18,6 +18,12 @@ import {
   loadMutedCategories,
   type ActionAlert,
 } from "@/lib/actionCenter";
+import {
+  categoryLabel,
+  groupByCategory,
+  isMutableCategory,
+} from "@/lib/briefingMute";
+import { MuteCategoryButton } from "@/components/briefing/MuteCategoryButton";
 import { FactLine } from "@/components/public/FactBadge";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -96,6 +102,7 @@ export default async function CommandCenterPage() {
   ]);
   const briefing = composeBriefingLines(alerts, { mutedCategories });
   const briefingLines = briefing.lines;
+  const briefingGroups = groupByCategory(briefingLines);
   const quickActions = getQuickActions(ctx);
   const kpis = await collectCommandCenterKPIs(ctx, companyId);
   const supabase = createAdminClient();
@@ -159,29 +166,61 @@ export default async function CommandCenterPage() {
           {briefing.summary && (
             <FactLine kind="INFERENCIA">{briefing.summary}</FactLine>
           )}
-          {briefingLines.length > 0 && (
-            <div className="list">
-              {briefingLines.map((line) => (
-                <div key={line.id} style={{ padding: "4px 0" }}>
-                  <FactLine kind="FACT">{line.fact}</FactLine>
-                  {line.inference && (
-                    <FactLine kind="INFERENCIA">{line.inference}</FactLine>
-                  )}
-                  {line.recommendation && (
-                    <FactLine kind="RECOMENDACAO">
-                      {line.recommendation}{" "}
-                      <Link
-                        href={line.href}
-                        style={{ color: "#2563eb", textDecoration: "underline" }}
-                      >
-                        Abrir →
-                      </Link>
-                    </FactLine>
+          {briefingGroups.size > 0 &&
+            Array.from(briefingGroups.entries()).map(([cat, groupLines]) => (
+              <div
+                key={cat}
+                style={{
+                  marginTop: "12px",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "4px",
+                  }}
+                >
+                  <h4 style={{ margin: 0, fontSize: "13px", fontWeight: 600 }}>
+                    {categoryLabel(cat)}
+                  </h4>
+                  {isMutableCategory(cat) && (
+                    <MuteCategoryButton
+                      category={cat}
+                      initiallyMuted={mutedCategories.includes(cat)}
+                    />
                   )}
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="list">
+                  {groupLines.map((line) => (
+                    <div key={line.id} style={{ padding: "4px 0" }}>
+                      <FactLine kind="FACT">{line.fact}</FactLine>
+                      {line.inference && (
+                        <FactLine kind="INFERENCIA">{line.inference}</FactLine>
+                      )}
+                      {line.recommendation && (
+                        <FactLine kind="RECOMENDACAO">
+                          {line.recommendation}{" "}
+                          <Link
+                            href={line.href}
+                            style={{
+                              color: "#2563eb",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            Abrir →
+                          </Link>
+                        </FactLine>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
         </div>
       </section>
 
