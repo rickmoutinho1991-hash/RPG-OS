@@ -31,6 +31,9 @@ Thumbs.db
 *.bak
 *.orig
 
+# Ficheiros em quarentena (stray / duplicados para decisao futura)
+_quarantine/
+
 # Caches de teste
 .pytest_cache/
 __pycache__/
