@@ -7,9 +7,12 @@
  * value (dado pessoal). Falha do audit → mutação prossegue (dado protegido
  * por RLS), com erro logado server-side.
  */
+export const MEMORY_ENTRY_SET = "MEMORY_ENTRY_SET";
+export const MEMORY_ENTRY_DELETED = "MEMORY_ENTRY_DELETED";
+
 export const MEMORY_AUDIT_ACTIONS = [
-  "MEMORY_ENTRY_SET",
-  "MEMORY_ENTRY_DELETED",
+  MEMORY_ENTRY_SET,
+  MEMORY_ENTRY_DELETED,
 ] as const;
 
 export type MemoryAuditAction = (typeof MEMORY_AUDIT_ACTIONS)[number];
