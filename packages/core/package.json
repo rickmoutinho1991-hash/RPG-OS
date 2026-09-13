@@ -8,11 +8,13 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts",
     "dev": "tsup src/index.ts --watch",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
   "devDependencies": {
     "tsup": "^8.5.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@types/node": "^22.0.0"
   },
   "dependencies": {
     "eslint": "^9.39.5"

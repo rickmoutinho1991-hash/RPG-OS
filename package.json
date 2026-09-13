@@ -2,16 +2,22 @@
   "name": "rpg-os",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@8.15.9",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.15.0"
+  },
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
+    "test": "vitest run",
     "clean": "turbo clean"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.11"
   }
 }

@@ -26,6 +26,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@rpg/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@rpg/core/*": [
+        "../../packages/core/src/*"
       ]
     }
   },
