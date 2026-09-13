@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RPG-OS</string>
+    <string name="title_activity_main">RPG-OS</string>
+    <string name="package_name">pt.rpgos.app</string>
+    <string name="custom_url_scheme">pt.rpgos.app</string>
+</resources>
