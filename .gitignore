@@ -18,3 +18,16 @@ supabase/.branches/
 
 .DS_Store
 Thumbs.db
+
+# Artefactos de debug
+.next/
+*.log
+*.tmp
+
+# Artefactos de backup / scratch de desenvolvimento
+*.bak
+*.orig
+
+# Caches de teste
+.pytest_cache/
+__pycache__/
