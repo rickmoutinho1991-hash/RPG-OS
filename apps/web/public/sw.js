@@ -4,7 +4,11 @@
  * tenham origem fora do app. Network-first em navegações para garantir
  * conteúdo fresco nas dashboard.
  */
-const CACHE = "rpg-os-v1";
+const CACHE_VERSION = "v2";
+/* BUMP MANUAL: incrementar a cada deploy de assets estaticos. */
+/* Sem esta variacao, navegadores reutilizam o cache antigo (stale shell). */
+/* NOTA: /public e' servido cru pelo Next - NAO usar process.env aqui (browser nao o tem). */
+const CACHE = `rpg-os-${CACHE_VERSION}`;
 const CORE = ["/manifest.json", "/icon-192.png", "/icon-512.png", "/icon-128.png", "/apple-touch-icon.png", "/badge-72.png"];
 
 self.addEventListener("install", (e) => {
