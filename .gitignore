@@ -19,6 +19,9 @@ supabase/.branches/
 .DS_Store
 Thumbs.db
 
+# Preferências locais de editor
+.vscode/
+
 # Artefactos de debug
 .next/
 *.log
