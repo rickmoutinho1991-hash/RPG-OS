@@ -3,9 +3,9 @@
 ## ESTADO ATUAL DO PROGRAMA (HANDOFF VIVO)
 > Auto-manutenção: no fecho de CADA ciclo ou vaga de commits, atualizar HEAD, contagens de gates e menu desta secção (máx 40 linhas). Doutrina completa: secção própria abaixo — nunca duplicar aqui.
 
-- HEAD selado: 7a00530 (13-09-2026) | árvore limpa | V1 clone-fresco GREEN
+- HEAD selado: 11e956c (13-09-2026) | árvore limpa | V1 clone-fresco GREEN
 - Gates de referência: 4x exit 0 — 110 files / 1732 passed / 6 skipped
-- Subsistemas: landing pública (demo fictícia marcada, zero Supabase público) · **showcase público de capacidades por ator (catálogo derivado da nav + anchor nav)** · briefing cross-domain §38 com mute via memória · memória IA (user_memories, RLS owner-only, audit sem value) · RLS 100% tabelas public (S1+S2, health service-only) · **demo opt-in por ?demo=1 + ALLOW_DEMO_ACCESS (dev-only), dados 100% sintéticos (lib/demo), banner rotulado** · SW auto-version (sw-version.json gerado no build) · Capacitor PREPARED_ONLY (android/ tracked, APK bloqueado por SSR)
+- Subsistemas: landing pública (demo fictícia marcada, zero Supabase público) · **showcase público de capacidades por ator (catálogo derivado da nav + anchor nav)** · **Command Center com catálogo de serviços (reutiliza derivação P6) + painel O Mercado (dados reais, fail-safe, mini-stepper 8 passos)** · briefing cross-domain §38 com mute via memória · memória IA (user_memories, RLS owner-only, audit sem value) · RLS 100% tabelas public (S1+S2, health service-only) · **demo opt-in por ?demo=1 + ALLOW_DEMO_ACCESS (dev-only), dados 100% sintéticos (lib/demo), banner rotulado** · SW auto-version (sw-version.json gerado no build) · Capacitor PREPARED_ONLY (android/ tracked, APK bloqueado por SSR)
 - DB: migrações commitadas; DEV aplicado até 20260913170000_enable_rls_health + reconciliação schema_migrations completa; PROD nunca automático (Regra #99)
 - Toolchain: pnpm 11 + onlyBuiltDependencies commitado; prisma NÃO é dependência (tipos de fonte commitada); suspeita de toolchain → clone fresco em $env:TEMP, nunca confiar em node_modules
 - Docs de referência: docs/DEPLOY.md (prod HTTPS + ALLOW_DEMO_ACCESS nunca em prod), docs/DATABASE.md ou DATABASE.md raiz (migrações), ARCHITECTURE.md (subsistemas + RLS least-privilege)
@@ -118,7 +118,7 @@ pnpm build
 
 ## Doutrina operacional dos ciclos
 
-- **Gates 4x obrigatórios** antes de qualquer commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` — todos com exit 0. Estado de referência: **110 files / 1732 passed / 6 skipped (HEAD `7a00530`)**.
+- **Gates 4x obrigatórios** antes de qualquer commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` — todos com exit 0. Estado de referência: **110 files / 1732 passed / 6 skipped (HEAD `11e956c`)**.
 - **`git add` seletivo** por ficheiros explícitos do ciclo — nunca `git add -A`.
 - **Push nunca automático**: só com instrução explícita do utilizador.
 - **Migrações de base de dados só com autorização escrita** (Regra #99): aplicar por ficheiro único e nunca executar `supabase db push`/seed em produção; prod nunca automático (ver `DATABASE.md`).
