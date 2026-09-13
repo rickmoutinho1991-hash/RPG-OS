@@ -3,8 +3,13 @@
  * Nunca inventa dados — só reporta o que existe na base de dados.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
-import { companyUserOrFilter } from "@rpg/core";
-import type { SessionContext } from "@rpg/core";
+import {
+  MemoryService,
+  companyUserOrFilter,
+  type SessionContext,
+  type UserMemory,
+} from "@rpg/core";
+import { SupabaseMemoryStore } from "@/lib/memory/supabaseStore";
 
 export interface ActionAlert {
   id: string;
@@ -198,92 +203,167 @@ export interface BriefingLine {
 }
 
 /**
+ * Resultado do briefing: as linhas visíveis + resumo de inferência.
+ * `summary` só existe quando o utilizador silenciou categorias na memória e
+ * esse silêncio efetivamente ocultou itens do briefing (nunca se inventa).
+ */
+export interface BriefingReport {
+  lines: BriefingLine[];
+  summary?: string;
+}
+
+/**
  * Converte alertas do Action Center em linhas de briefing estruturadas.
  * `inference` só existe quando há base factual para a leitura (itens INFO de
  * compromissos/notificações ficam sem inference — não se especula à toa).
+ *
+ * `mutedCategories`: categorias que o utilizador silenciou na memória.
+ * Quando pelo menos um item é ocultado, `summary` informa quantas categorias
+ * foram silenciadas.
  */
-export function composeBriefingLines(items: ActionAlert[]): BriefingLine[] {
-  return items.map((a) => {
-    const kind = a.id.split("-")[0] ?? "";
-    switch (kind) {
-      case "task": {
-        return {
-          id: a.id,
-          href: a.href,
-          severity: a.severity,
-          fact: `A tarefa "${a.detail ?? a.title}" está atrasada.`,
-          inference: "Inferência: se não for resolvida hoje, pode bloquear o que se segue.",
-          recommendation:
-            a.severity === "URGENT"
-              ? "Trate esta tarefa primeiro: conclua-a ou reagende-a."
-              : "Conclua ou reagende a tarefa ainda hoje.",
-        };
-      }
-      case "wf": {
-        return {
-          id: a.id,
-          href: a.href,
-          severity: a.severity,
-          fact: `Pedido de aprovação (${a.detail ?? "sem tipo"}) aguarda a sua decisão.`,
-          recommendation: "Aprove ou rejeite o pedido em aberto.",
-        };
-      }
-      case "notif": {
-        return {
-          id: a.id,
-          href: a.href,
-          severity: a.severity,
-          fact: `Notificação não lida: ${a.title}.`,
-          recommendation:
-            a.severity === "URGENT"
-              ? "Abra a notificação agora e resolva o que estiver pendente."
-              : "Abra a notificação e veja o que requer atenção.",
-        };
-      }
-      case "event": {
-        return {
-          id: a.id,
-          href: a.href,
-          severity: a.severity,
-          fact: `Compromisso marcado: ${a.detail ?? a.title}.`,
-          recommendation: "Confirme o seu horário e prepare-se para o compromisso.",
-        };
-      }
-      case "bill": {
-        const overdue = a.id.includes("overdue");
-        return {
-          id: a.id,
-          href: a.href,
-          severity: a.severity,
-          fact: overdue
-            ? `Conta vencida: ${a.detail ?? a.title}.`
-            : `Conta a vencer em breve: ${a.detail ?? a.title}.`,
-          inference: overdue
-            ? "Inferência: o atraso no pagamento pode gerar juros ou interrupção do serviço."
-            : undefined,
-          recommendation: overdue
-            ? "Regularize o pagamento ou contacte o fornecedor hoje."
-            : "Agende o pagamento antes do vencimento.",
-        };
-      }
-      case "doc": {
-        return {
-          id: a.id,
-          href: a.href,
-          severity: a.severity,
-          fact: `Documento a expirar: ${a.detail ?? a.title}.`,
-          inference: "Inferência: a expiração pode bloquear processos de faturação.",
-          recommendation: "Renove ou atualize o documento antes do prazo.",
-        };
-      }
-      default: {
-        return {
-          id: a.id,
-          href: a.href,
-          severity: a.severity,
-          fact: a.title,
-        };
-      }
+export function composeBriefingLines(
+  items: ActionAlert[],
+  opts?: { mutedCategories?: string[] },
+): BriefingReport {
+  const muted = new Set(opts?.mutedCategories ?? []);
+  const visible = items.filter((a) => !muted.has(kindOf(a.id)));
+  const lines = visible.map(composeBriefingLine);
+  const silencedKinds = new Set(
+    items
+      .filter((a) => muted.has(kindOf(a.id)))
+      .map((a) => kindOf(a.id)),
+  );
+  const summary =
+    silencedKinds.size > 0
+      ? `Segundo a tua memória: ${silencedKinds.size} ${
+          silencedKinds.size === 1 ? "categoria" : "categorias"
+        } silenciada${silencedKinds.size === 1 ? "" : "s"}.`
+      : undefined;
+  return { lines, summary };
+}
+
+function kindOf(id: string): string {
+  return id.split("-")[0] ?? "";
+}
+
+function composeBriefingLine(a: ActionAlert): BriefingLine {
+  const kind = kindOf(a.id);
+  switch (kind) {
+    case "task": {
+      return {
+        id: a.id,
+        href: a.href,
+        severity: a.severity,
+        fact: `A tarefa "${a.detail ?? a.title}" está atrasada.`,
+        inference: "Inferência: se não for resolvida hoje, pode bloquear o que se segue.",
+        recommendation:
+          a.severity === "URGENT"
+            ? "Trate esta tarefa primeiro: conclua-a ou reagende-a."
+            : "Conclua ou reagende a tarefa ainda hoje.",
+      };
     }
-  });
+    case "wf": {
+      return {
+        id: a.id,
+        href: a.href,
+        severity: a.severity,
+        fact: `Pedido de aprovação (${a.detail ?? "sem tipo"}) aguarda a sua decisão.`,
+        recommendation: "Aprove ou rejeite o pedido em aberto.",
+      };
+    }
+    case "notif": {
+      return {
+        id: a.id,
+        href: a.href,
+        severity: a.severity,
+        fact: `Notificação não lida: ${a.title}.`,
+        recommendation:
+          a.severity === "URGENT"
+            ? "Abra a notificação agora e resolva o que estiver pendente."
+            : "Abra a notificação e veja o que requer atenção.",
+      };
+    }
+    case "event": {
+      return {
+        id: a.id,
+        href: a.href,
+        severity: a.severity,
+        fact: `Compromisso marcado: ${a.detail ?? a.title}.`,
+        recommendation: "Confirme o seu horário e prepare-se para o compromisso.",
+      };
+    }
+    case "bill": {
+      const overdue = a.id.includes("overdue");
+      return {
+        id: a.id,
+        href: a.href,
+        severity: a.severity,
+        fact: overdue
+          ? `Conta vencida: ${a.detail ?? a.title}.`
+          : `Conta a vencer em breve: ${a.detail ?? a.title}.`,
+        inference: overdue
+          ? "Inferência: o atraso no pagamento pode gerar juros ou interrupção do serviço."
+          : undefined,
+        recommendation: overdue
+          ? "Regularize o pagamento ou contacte o fornecedor hoje."
+          : "Agende o pagamento antes do vencimento.",
+      };
+    }
+    case "doc": {
+      return {
+        id: a.id,
+        href: a.href,
+        severity: a.severity,
+        fact: `Documento a expirar: ${a.detail ?? a.title}.`,
+        inference: "Inferência: a expiração pode bloquear processos de faturação.",
+        recommendation: "Renove ou atualize o documento antes do prazo.",
+      };
+    }
+    default: {
+      return {
+        id: a.id,
+        href: a.href,
+        severity: a.severity,
+        fact: a.title,
+      };
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Memória (briefing × memória): leitura fail-safe das categorias silenciadas.
+// Uma única query no máximo; qualquer erro → sem filtro → briefing normal.
+// ---------------------------------------------------------------------------
+
+/**
+ * Extrai as categorias silenciadas de uma memória de preferência
+ * (kind="preference", key="muted_categories"). Função pura e fail-safe:
+ * memória ausente/inválida → lista vazia (sem filtro).
+ */
+export function resolveMutedCategories(memories: UserMemory[]): string[] {
+  const pref = memories.find(
+    (m) => m.kind === "preference" && m.key === "muted_categories",
+  );
+  const raw = pref?.value?.categories ?? pref?.value?.items;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((c): c is string => typeof c === "string");
+}
+
+/**
+ * Preferências de silêncio do utilizador. Fail-safe em todos os caminhos:
+ * sem sessão/sem memórias → sem filtro; erro do store → sem filtro, o briefing
+ * nunca cai. `service` só é injetado em testes.
+ */
+export async function loadMutedCategories(
+  ctx: SessionContext,
+  service?: MemoryService,
+): Promise<string[]> {
+  try {
+    const memoryService =
+      service ?? new MemoryService(new SupabaseMemoryStore());
+    const memories = await memoryService.get(ctx.user.id);
+    return resolveMutedCategories(memories);
+  } catch {
+    return [];
+  }
 }

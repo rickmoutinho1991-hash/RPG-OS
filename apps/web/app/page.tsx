@@ -15,6 +15,7 @@ import {
 import {
   collectActionAlerts,
   composeBriefingLines,
+  loadMutedCategories,
   type ActionAlert,
 } from "@/lib/actionCenter";
 import { FactLine } from "@/components/public/FactBadge";
@@ -89,8 +90,12 @@ export default async function CommandCenterPage() {
   // NUNCA organization.id aqui: company_id !== organization_id.
   const currentUser = await getCurrentUser();
   const companyId = currentUser?.companyId ?? null;
-  const alerts = await collectActionAlerts(ctx, companyId);
-  const briefingLines = composeBriefingLines(alerts);
+  const [alerts, mutedCategories] = await Promise.all([
+    collectActionAlerts(ctx, companyId),
+    loadMutedCategories(ctx),
+  ]);
+  const briefing = composeBriefingLines(alerts, { mutedCategories });
+  const briefingLines = briefing.lines;
   const quickActions = getQuickActions(ctx);
   const kpis = await collectCommandCenterKPIs(ctx, companyId);
   const supabase = createAdminClient();
@@ -147,10 +152,13 @@ export default async function CommandCenterPage() {
           }}
         >
           <h3 style={{ margin: "0 0 8px" }}>
-            {alerts.length === 0
+            {briefingLines.length === 0
               ? "✅ Está tudo em ordem — nada precisa da sua atenção."
-              : `⚠️ Há ${alerts.length} ${alerts.length === 1 ? "coisa que precisa" : "coisas que precisam"} da sua atenção.`}
+              : `⚠️ Há ${briefingLines.length} ${briefingLines.length === 1 ? "coisa que precisa" : "coisas que precisam"} da sua atenção.`}
           </h3>
+          {briefing.summary && (
+            <FactLine kind="INFERENCIA">{briefing.summary}</FactLine>
+          )}
           {briefingLines.length > 0 && (
             <div className="list">
               {briefingLines.map((line) => (
