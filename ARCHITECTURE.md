@@ -9,6 +9,8 @@ O monorepo usa Turborepo/pnpm, com `apps/web` (Next.js App Router) e `packages/c
 
 A organização ativa é escolhida por cookie apenas entre memberships válidas do próprio utilizador. A service role é usada no backend apenas depois da autorização da aplicação; RLS continua a ser a barreira de base de dados para clientes Supabase normais.
 
+**RLS least-privilege em todas as tabelas `public`**: as 10 tabelas que ainda não tinham policies ficaram com RLS por classe — catálogos RBAC (`roles`, `permissions`, `role_permissions`) e `addresses` (sem coluna de owner) são **read-only para `authenticated`**; pessoais (`registrations`, `rgpd_consents`, `document_verifications`) são owner-only (ALL via `auth.uid()`); membrias (`user_roles`, `project_members`, `company_employees`) permitem SELECT own-or-same-scope. Escritas permanecem via service role/migrations (política least-privilege, migração `20260913160000_enable_rls_least_privilege`).
+
 ## Memória de IA
 - Tabela `user_memories`: `user_id` + `key` únicos por ator, valor JSONB, `kind` em `preference|fact|context`; RLS owner-only (`user_id = auth.uid()`).
 - Core (`packages/core/src/memory`): porta `MemoryStore` e `MemoryService` fail-closed (recusa actorId vazio, kind fora do enum e valores null/array).
