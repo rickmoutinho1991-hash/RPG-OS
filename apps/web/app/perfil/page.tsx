@@ -1,5 +1,6 @@
 import { getSessionContext } from "@/lib/session";
 import { getBuiltinRole } from "@rpg/core";
+import { MemoryEditor } from "./MemoryEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,10 @@ export default async function ProfilePage() {
             <span key={p} className="tag-badge" style={{ fontSize: "11px" }}>{p}</span>
           ))}
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: "20px" }}>
+        <MemoryEditor />
       </div>
     </main>
   );
