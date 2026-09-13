@@ -37,6 +37,9 @@ _quarantine/
 # Dump gerado de estrutura (regenerado sob demanda)
 PROJECT-FULL-STRUCTURE.txt
 
+# Versão do Service Worker, gerada no build (ver apps/web/scripts/stamp-sw-version.mjs)
+apps/web/public/sw-version.json
+
 # Caches de teste
 .pytest_cache/
 __pycache__/
