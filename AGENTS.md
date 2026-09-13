@@ -101,3 +101,15 @@ pnpm build
    # npx cap sync android
    # npx cap open android
    ```
+
+---
+
+## Doutrina operacional dos ciclos
+
+- **Gates 4x obrigatórios** antes de qualquer commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` — todos com exit 0. Estado de referência: **107 files / 1722 passed / 6 skipped (HEAD `d501280`)**.
+- **`git add` seletivo** por ficheiros explícitos do ciclo — nunca `git add -A`.
+- **Push nunca automático**: só com instrução explícita do utilizador.
+- **Migrações de base de dados só com autorização escrita** (Regra #99): aplicar por ficheiro único e nunca executar `supabase db push`/seed em produção; prod nunca automático (ver `DATABASE.md`).
+- **Protocolo anti-loop**: R1 cada comando executado 1x; R2 outputs grandes → `$env:TEMP` + `Tail`; R3 cada gate 1x; R4 PARAR após o relatório.
+- **Fail-safe por domínio**: erro numa fonte contribui zero itens e a funcionalidade não cai (briefing, memória, mute).
+- **Sem `ts-ignore`, sem `as any`, sem skips** em código novo.
