@@ -1,0 +1,41 @@
+-- RPG-OS: Agenda Universal, Marcações, Lembretes Pessoais & Rotinas de Saúde
+
+-- 1. TABELA DE COMPROMISSOS E MARCAÇÕES (AGENDA UNIVERSAL)
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    event_type TEXT NOT NULL DEFAULT 'REUNIAO', -- CONSULTA, REUNIAO, VISITA, TREINO, MEDICACAO, LEMBRETE, PESSOAL
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ,
+    location TEXT,
+    status TEXT NOT NULL DEFAULT 'SCHEDULED', -- SCHEDULED, COMPLETED, CANCELLED, POSTPONED
+    priority TEXT NOT NULL DEFAULT 'MEDIUM', -- LOW, MEDIUM, HIGH, URGENT
+    reminder_minutes INTEGER DEFAULT 30,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 2. TABELA DE LEMBRETES PESSOAIS, ROTINAS E MEDICAÇÃO
+CREATE TABLE IF NOT EXISTS personal_reminders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'TASK', -- MEDICATION, HEALTH, HABIT, TASK, FINANCIAL, PERSONAL
+    frequency TEXT NOT NULL DEFAULT 'DAILY', -- ONCE, DAILY, WEEKLY, MONTHLY
+    scheduled_time TIME,
+    dosage TEXT,
+    notes TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_completed_today BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 3. PERMISSÕES SERVICE_ROLE
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.calendar_events TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.personal_reminders TO service_role;
