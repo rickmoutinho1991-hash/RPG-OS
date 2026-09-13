@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
+  const demoEnabled = process.env.ALLOW_DEMO_ACCESS === "true";
+  if (!user && !demoEnabled) notFound();
   const supabase = createAdminClient();
 
   const userId = user?.id || "00000000-0000-0000-0000-000000000000";

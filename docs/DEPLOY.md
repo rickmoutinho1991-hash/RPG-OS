@@ -12,7 +12,8 @@ autónomo, Docker, etc. Nenhuma instrução é específica de um host.
   (Supabase URL/keys, `NEXT_PUBLIC_APP_URL`, `CSRF_SECRET`, `SESSION_SECRET`,
   providers, rate limits...). Nunca commitar credenciais reais; usar secret
   manager do host. `ALLOW_FAKE_PROVIDERS=false` e `PAYMENT_PROVIDER` real em
-  produção.
+  produção. `ALLOW_DEMO_ACCESS` nunca definido em prod (default fechado; é uma
+  ferramenta de desenvolvimento/teste, não sobrevive fora de dev).
 - **Migrações**: nunca automáticas. Seguir o procedimento manual em
   `DATABASE.md` (revisão humana + aplicação por psql/pipeline aprovado).
 
