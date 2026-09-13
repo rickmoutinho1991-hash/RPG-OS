@@ -8,6 +8,9 @@ import { MemoryControlPreview } from "@/components/public/MemoryControlPreview";
 import { PublicCTA } from "@/components/public/PublicCTA";
 import { PublicAnchorNav } from "@/components/public/PublicAnchorNav";
 import { CapabilitiesShowcase } from "@/components/public/CapabilitiesShowcase";
+import { ServicesCatalog } from "@/components/dashboard/ServicesCatalog";
+import { MercadoPanel } from "@/components/dashboard/MercadoPanel";
+import { buildPublicCatalog } from "@/lib/publicCatalog";
 import {
   resolveMode,
   getHeadline,
@@ -144,15 +147,19 @@ export default async function CommandCenterPage() {
   // NUNCA organization.id aqui: company_id !== organization_id.
   const currentUser = await getCurrentUser();
   const companyId = currentUser?.companyId ?? null;
-  const [alerts, mutedCategories] = await Promise.all([
+
+  const catalog = buildPublicCatalog();
+
+  const [alerts, mutedCategories, kpis, mercadoPanel] = await Promise.all([
     collectActionAlerts(ctx, companyId),
     loadMutedCategories(ctx),
+    collectCommandCenterKPIs(ctx, companyId),
+    MercadoPanel({ userId: ctx.user.id, companyId }),
   ]);
   const briefing = composeBriefingLines(alerts, { mutedCategories });
   const briefingLines = briefing.lines;
   const briefingGroups = groupByCategory(briefingLines);
   const quickActions = getQuickActions(ctx);
-  const kpis = await collectCommandCenterKPIs(ctx, companyId);
   const supabase = createAdminClient();
   const userId = ctx.user.id;
 
@@ -480,6 +487,20 @@ export default async function CommandCenterPage() {
           </div>
         )}
       </div>
+
+      {/* Servicos RPG-OS */}
+      <ServicesCatalog
+        domains={catalog}
+        counts={{
+          approvals: kpis.find((k) => k.id === "approvals")?.value as number,
+          overdueBills: kpis.find((k) => k.id === "overdue-bills")?.value as number,
+          expiringDocs: kpis.find((k) => k.id === "docs-expiring")?.value as number,
+          complaints: kpis.find((k) => k.id === "complaints")?.value as number,
+        }}
+      />
+
+      {/* O Mercado */}
+      {mercadoPanel}
     </main>
   );
 }
