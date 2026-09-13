@@ -1,4 +1,4 @@
-import type {
+ï»¿import type {
   AccountType,
   RegistrationProfile,
 } from "../types/registration";
@@ -20,23 +20,23 @@ export function createRegistrationProfile(
   input: CreateRegistrationInput,
 ): RegistrationProfile {
   if (!input.email.trim()) {
-    throw new Error("Email é obrigatório.");
+    throw new Error("Email Ã© obrigatÃ³rio.");
   }
 
   if (!input.phone.trim()) {
-    throw new Error("Telefone é obrigatório.");
+    throw new Error("Telefone Ã© obrigatÃ³rio.");
   }
 
   if (!isValidPortugueseNif(input.nif)) {
-    throw new Error("NIF português inválido.");
+    throw new Error("NIF portuguÃªs invÃ¡lido.");
   }
 
   if (!input.legalName.trim()) {
-    throw new Error("Nome legal é obrigatório.");
+    throw new Error("Nome legal Ã© obrigatÃ³rio.");
   }
 
   if (!input.address.trim()) {
-    throw new Error("Morada é obrigatória.");
+    throw new Error("Morada Ã© obrigatÃ³ria.");
   }
 
   const now = new Date().toISOString();
