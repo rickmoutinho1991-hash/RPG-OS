@@ -303,7 +303,7 @@ export function MercadoDetail({
         )}
 
         {request.quotes?.map((quote) => (
-          <QuoteCard key={quote.id} quote={quote} isOwner={isOwner} currentUserId={currentUserId} />
+          <QuoteCard key={quote.id} quote={quote} isOwner={isOwner} currentUserId={currentUserId} request={request} />
         ))}
       </section>
     </div>
@@ -321,7 +321,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function QuoteCard({ quote, isOwner, currentUserId }: { quote: MarketQuote; isOwner: boolean; currentUserId: string }) {
+function QuoteCard({ quote, isOwner, currentUserId, request }: { quote: MarketQuote; isOwner: boolean; currentUserId: string; request: MarketRequest }) {
   const isMyQuote = quote.provider_id === currentUserId;
 
   return (
@@ -380,8 +380,34 @@ function QuoteCard({ quote, isOwner, currentUserId }: { quote: MarketQuote; isOw
 
       {isOwner && ["SENT", "VIEWED"].includes(quote.status) && (
         <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-          <button className="button" style={{ fontSize: "13px" }}>Aceitar</button>
-          <button className="button secondary" style={{ fontSize: "13px" }}>Recusar</button>
+          <button
+            className="button"
+            style={{ fontSize: "13px" }}
+            onClick={async () => {
+              try {
+                const formData = new FormData();
+                formData.append("requestId", request.id);
+                formData.append("quoteId", quote.id);
+                const res = await fetch("/api/mercado/contract", {
+                  method: "POST",
+                  body: formData,
+                });
+                const data = await res.json();
+                if (data.error) {
+                  alert(data.error);
+                } else {
+                  window.location.reload();
+                }
+              } catch {
+                alert("Erro de rede");
+              }
+            }}
+          >
+            Aceitar
+          </button>
+          <button className="button secondary" style={{ fontSize: "13px" }}>
+            Recusar
+          </button>
         </div>
       )}
     </article>

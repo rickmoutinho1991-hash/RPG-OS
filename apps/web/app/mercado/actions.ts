@@ -41,6 +41,28 @@ export interface SubmitQuoteInput {
   responseToQuestions?: string;
 }
 
+export interface AcceptQuoteInput {
+  requestId: string;
+  quoteId: string;
+}
+
+export interface SubmitMilestoneInput {
+  contractId: string;
+  milestoneId: string;
+  evidence?: { deliverableId: string; hash: string; url?: string; description?: string }[];
+}
+
+export interface ApproveMilestoneInput {
+  contractId: string;
+  milestoneId: string;
+  approve: boolean;
+  note?: string;
+}
+
+export interface GetContractInput {
+  contractId: string;
+}
+
 function validateCreateRequest(input: CreateRequestInput): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
@@ -476,5 +498,365 @@ export async function submitQuoteAction(formData: FormData) {
   } catch (err) {
     console.error("[submitQuoteAction] Erro:", err);
     return { error: "Erro ao submeter proposta" };
+  }
+}
+
+export async function acceptQuoteAction(formData: FormData) {
+  const ctx = await getSessionContext();
+  if (!ctx) return { error: "Não autenticado" };
+
+  if (!hasPermission(ctx.permissions, "marketplace.requests.create")) {
+    return { error: "Sem permissão para adjudicar propostas" };
+  }
+
+  const input: AcceptQuoteInput = {
+    requestId: formData.get("requestId") as string,
+    quoteId: formData.get("quoteId") as string,
+  };
+
+  if (!input.requestId || !input.quoteId) {
+    return { error: "requestId e quoteId são obrigatórios" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: request, error: reqError } = await supabase
+    .from("service_requests")
+    .select("*")
+    .eq("id", input.requestId)
+    .single();
+
+  if (reqError || !request) return { error: "Pedido não encontrado" };
+
+  if (request.client_id !== ctx.user.id) {
+    return { error: "Apenas o dono do pedido pode aceitar propostas" };
+  }
+
+  if (!["PUBLISHED", "QUOTES_RECEIVED", "ADJUDICATING"].includes(request.status)) {
+    return { error: "Pedido não está em estado elegível para adjudicação" };
+  }
+
+  const { data: quote, error: quoteError } = await supabase
+    .from("service_quotes")
+    .select("*")
+    .eq("id", input.quoteId)
+    .eq("request_id", input.requestId)
+    .single();
+
+  if (quoteError || !quote) return { error: "Proposta não encontrada" };
+
+  if (quote.status !== "SENT" && quote.status !== "VIEWED") {
+    return { error: "Proposta não está em estado elegível para aceitação" };
+  }
+
+  try {
+    const marketplaceFlow = new MarketplaceFlow();
+    const requestFlow = new ServicesRequestFlow();
+
+    const acceptedResult = marketplaceFlow.acceptQuote(
+      {
+        id: quote.id,
+        requestId: quote.request_id,
+        providerId: quote.provider_id,
+        items: [],
+        subtotalCents: quote.subtotal_cents,
+        taxCents: quote.tax_cents,
+        totalCents: quote.total_cents,
+        currency: quote.currency,
+        validUntil: quote.valid_until,
+        terms: quote.terms,
+        warrantyMonths: quote.warranty_months,
+        estimatedStartDate: quote.estimated_start_date,
+        estimatedDurationDays: quote.estimated_duration_days,
+        responseToQuestions: quote.response_to_questions,
+        status: quote.status as any,
+        sentAt: quote.sent_at,
+        viewedAt: quote.viewed_at,
+        createdAt: quote.created_at,
+        updatedAt: quote.updated_at,
+      },
+      { id: request.id, clientId: request.client_id },
+      ctx.user.id
+    );
+
+    const { error: quoteUpdateError } = await supabase
+      .from("service_quotes")
+      .update({ status: acceptedResult.entity.status, updated_at: acceptedResult.entity.updatedAt })
+      .eq("id", input.quoteId);
+
+    if (quoteUpdateError) throw quoteUpdateError;
+
+    const { data: otherQuotes } = await supabase
+      .from("service_quotes")
+      .select("id, request_id, provider_id, status, created_at, updated_at")
+      .eq("request_id", input.requestId)
+      .neq("id", input.quoteId)
+      .in("status", ["SENT", "VIEWED"]);
+
+    for (const q of otherQuotes ?? []) {
+      const rejectedResult = marketplaceFlow.rejectQuote(
+        {
+          id: q.id,
+          requestId: q.request_id,
+          providerId: q.provider_id,
+          items: [],
+          subtotalCents: 0,
+          taxCents: 0,
+          totalCents: 0,
+          currency: "EUR",
+          validUntil: "",
+          status: q.status as any,
+          createdAt: q.created_at,
+          updatedAt: q.updated_at,
+        },
+        { id: request.id, clientId: request.client_id },
+        ctx.user.id
+      );
+      await supabase
+        .from("service_quotes")
+        .update({ status: rejectedResult.entity.status, updated_at: rejectedResult.entity.updatedAt })
+        .eq("id", q.id);
+    }
+
+    const convertedResult = marketplaceFlow.convertToContract(acceptedResult.entity);
+
+    const { data: contract, error: contractError } = await supabase
+      .from("contracts")
+      .insert({
+        id: crypto.randomUUID(),
+        request_id: request.id,
+        client_id: request.client_id,
+        provider_id: quote.provider_id,
+        adjudicated_quote_id: quote.id,
+        status: "DRAFT",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (contractError) throw contractError;
+
+    const { data: quoteItems } = await supabase
+      .from("service_quote_items")
+      .select("*")
+      .eq("quote_id", quote.id);
+
+    const milestones = (quoteItems ?? []).map((item, idx) => ({
+      id: crypto.randomUUID(),
+      contract_id: contract.id,
+      title: item.description,
+      description: `Entrega: ${item.description}`,
+      due_date: quote.estimated_start_date ? new Date(new Date(quote.estimated_start_date).getTime() + (idx + 1) * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null,
+      amount_cents: Math.round(item.total_cents / (quoteItems?.length ?? 1)),
+      status: "PENDING" as const,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+    if (milestones.length > 0) {
+      const { error: milestonesError } = await supabase
+        .from("contract_milestones")
+        .insert(milestones);
+      if (milestonesError) throw milestonesError;
+    }
+
+    await supabase
+      .from("service_requests")
+      .update({ status: "CONTRACTED", updated_at: new Date().toISOString() })
+      .eq("id", input.requestId);
+
+    revalidatePath("/mercado");
+    revalidatePath(`/mercado/pedidos/${input.requestId}`);
+    revalidatePath(`/mercado/contratos/${contract.id}`);
+
+    return { success: true, contractId: contract.id };
+  } catch (err) {
+    console.error("[acceptQuoteAction] Erro:", err);
+    return { error: "Erro ao aceitar proposta" };
+  }
+}
+
+export async function getContractAction(input: GetContractInput) {
+  const ctx = await getSessionContext();
+  if (!ctx) return { error: "Não autenticado" };
+
+  const supabase = createAdminClient();
+
+  const { data: contract, error } = await supabase
+    .from("contracts")
+    .select(`
+      *,
+      contract_milestones (*)
+    `)
+    .eq("id", input.contractId)
+    .single();
+
+  if (error || !contract) return { error: "Contrato não encontrado" };
+
+  if (contract.client_id !== ctx.user.id && contract.provider_id !== ctx.user.id) {
+    return { error: "Acesso negado" };
+  }
+
+  const { data: request } = await supabase
+    .from("service_requests")
+    .select("title, description, client_id, category_id")
+    .eq("id", contract.request_id)
+    .single();
+
+  return {
+    contract: {
+      ...contract,
+      milestones: contract.contract_milestones?.sort((a: any, b: any) => a.created_at.localeCompare(b.created_at)) ?? [],
+      request,
+    },
+  };
+}
+
+export async function submitMilestoneAction(formData: FormData) {
+  const ctx = await getSessionContext();
+  if (!ctx) return { error: "Não autenticado" };
+
+  const input: SubmitMilestoneInput = {
+    contractId: formData.get("contractId") as string,
+    milestoneId: formData.get("milestoneId") as string,
+    evidence: formData.get("evidence") ? JSON.parse(formData.get("evidence") as string) : undefined,
+  };
+
+  if (!input.contractId || !input.milestoneId) {
+    return { error: "contractId e milestoneId são obrigatórios" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: contract } = await supabase
+    .from("contracts")
+    .select("*")
+    .eq("id", input.contractId)
+    .single();
+
+  if (!contract) return { error: "Contrato não encontrado" };
+
+  if (contract.provider_id !== ctx.user.id) {
+    return { error: "Apenas o prestador pode marcar milestones como concluídos" };
+  }
+
+  const { data: milestone } = await supabase
+    .from("contract_milestones")
+    .select("*")
+    .eq("id", input.milestoneId)
+    .eq("contract_id", input.contractId)
+    .single();
+
+  if (!milestone) return { error: "Milestone não encontrado" };
+
+  if (milestone.status !== "PENDING" && milestone.status !== "IN_PROGRESS") {
+    return { error: "Milestone não está em estado elegível para submissão" };
+  }
+
+  try {
+    const { error: updateError } = await supabase
+      .from("contract_milestones")
+      .update({
+        status: "SUBMITTED",
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.milestoneId);
+
+    if (updateError) throw updateError;
+
+    revalidatePath(`/mercado/contratos/${input.contractId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("[submitMilestoneAction] Erro:", err);
+    return { error: "Erro ao submeter milestone" };
+  }
+}
+
+export async function approveMilestoneAction(formData: FormData) {
+  const ctx = await getSessionContext();
+  if (!ctx) return { error: "Não autenticado" };
+
+  const input: ApproveMilestoneInput = {
+    contractId: formData.get("contractId") as string,
+    milestoneId: formData.get("milestoneId") as string,
+    approve: formData.get("approve") === "true",
+    note: formData.get("note") as string || undefined,
+  };
+
+  if (!input.contractId || !input.milestoneId) {
+    return { error: "contractId e milestoneId são obrigatórios" };
+  }
+
+  if (!input.approve && !input.note?.trim()) {
+    return { error: "Nota é obrigatória ao devolver milestone" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: contract } = await supabase
+    .from("contracts")
+    .select("*")
+    .eq("id", input.contractId)
+    .single();
+
+  if (!contract) return { error: "Contrato não encontrado" };
+
+  if (contract.client_id !== ctx.user.id) {
+    return { error: "Apenas o dono do contrato pode aprovar milestones" };
+  }
+
+  const { data: milestone } = await supabase
+    .from("contract_milestones")
+    .select("*")
+    .eq("id", input.milestoneId)
+    .eq("contract_id", input.contractId)
+    .single();
+
+  if (!milestone) return { error: "Milestone não encontrado" };
+
+  if (milestone.status !== "SUBMITTED") {
+    return { error: "Milestone não está em estado elegível para aprovação" };
+  }
+
+  try {
+    const newStatus = input.approve ? "APPROVED" : "REJECTED";
+    const updateData: any = {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    };
+    if (input.approve) {
+      updateData.approved_at = new Date().toISOString();
+    }
+
+    const { error: updateError } = await supabase
+      .from("contract_milestones")
+      .update(updateData)
+      .eq("id", input.milestoneId);
+
+    if (updateError) throw updateError;
+
+    if (input.approve) {
+      const { data: allMilestones } = await supabase
+        .from("contract_milestones")
+        .select("status")
+        .eq("contract_id", input.contractId);
+
+      const allApproved = allMilestones?.every(m => m.status === "APPROVED") ?? false;
+      if (allApproved) {
+        await supabase
+          .from("contracts")
+          .update({ status: "COMPLETED", updated_at: new Date().toISOString() })
+          .eq("id", input.contractId);
+      }
+    }
+
+    revalidatePath(`/mercado/contratos/${input.contractId}`);
+    revalidatePath("/mercado");
+    return { success: true };
+  } catch (err) {
+    console.error("[approveMilestoneAction] Erro:", err);
+    return { error: "Erro ao aprovar milestone" };
   }
 }

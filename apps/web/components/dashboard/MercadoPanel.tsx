@@ -370,6 +370,8 @@ export async function MercadoPanel({
 
   const { requests, contracts = [], warranties = [] } = data;
 
+  const allContracts = contracts.filter(c => c.status !== "DRAFT");
+
   if (requests.length === 0) {
     return (
       <section aria-label="O Mercado" style={{ marginTop: "24px" }}>
@@ -396,6 +398,11 @@ export async function MercadoPanel({
         }}
       >
         <h2 style={{ margin: 0, fontSize: "18px" }}>O Mercado</h2>
+        {allContracts.length > 0 && (
+          <Link href="/mercado/contratos" className="button secondary" style={{ fontSize: "13px" }}>
+            Ver Contratos ({allContracts.length})
+          </Link>
+        )}
       </div>
 
       <div style={{ display: "grid", gap: "12px" }}>
