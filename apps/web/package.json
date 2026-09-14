@@ -28,6 +28,8 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "@typescript-eslint/eslint-plugin": "8.67.0",
     "@typescript-eslint/parser": "8.67.0",
     "@typescript-eslint/project-service": "8.67.0",

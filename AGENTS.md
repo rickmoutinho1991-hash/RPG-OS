@@ -3,8 +3,8 @@
 ## ESTADO ATUAL DO PROGRAMA (HANDOFF VIVO)
 > Auto-manutenção: no fecho de CADA ciclo ou vaga de commits, atualizar HEAD, contagens de gates e menu desta secção (máx 40 linhas). Doutrina completa: secção própria abaixo — nunca duplicar aqui.
 
-- HEAD selado: 6ec8553 (13-09-2026) | árvore limpa | V1 clone-fresco GREEN
-- Gates de referência: 4x exit 0 — 110 files / 1732 passed / 6 skipped
+- HEAD selado: d118a68 (14-09-2026) | árvore limpa | P7a Mercado Transacional I GREEN
+- Gates de referência: 4x exit 0 — 113 files / 1749 passed / 6 skipped (+17 tests)
 - Subsistemas: landing pública (demo fictícia marcada, zero Supabase público) · **showcase público de capacidades por ator (catálogo derivado da nav + anchor nav)** · **Command Center com catálogo de serviços (reutiliza derivação P6) + painel O Mercado (dados reais, fail-safe, mini-stepper 8 passos)** · **mercado transacional I — pedidos e propostas (createRequest/submitQuote via core, scoping sessão, RLS least-privilege)** · briefing cross-domain §38 com mute via memória · memória IA (user_memories, RLS owner-only, audit sem value) · RLS 100% tabelas public (S1+S2, health service-only) · **demo opt-in por ?demo=1 + ALLOW_DEMO_ACCESS (dev-only), dados 100% sintéticos (lib/demo), banner rotulado** · SW auto-version (sw-version.json gerado no build) · Capacitor PREPARED_ONLY (android/ tracked, APK bloqueado por SSR)
 - DB: migrações commitadas; DEV aplicado até 20260913170000_enable_rls_health + reconciliação schema_migrations completa; PROD nunca automático (Regra #99)
 - Toolchain: pnpm 11 + onlyBuiltDependencies commitado; prisma NÃO é dependência (tipos de fonte commitada); suspeita de toolchain → clone fresco em $env:TEMP, nunca confiar em node_modules
@@ -118,10 +118,11 @@ pnpm build
 
 ## Doutrina operacional dos ciclos
 
-- **Gates 4x obrigatórios** antes de qualquer commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` — todos com exit 0. Estado de referência: **110 files / 1732 passed / 6 skipped (HEAD `6ec8553`)**.
+- **Gates 4x obrigatórios** antes de qualquer commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` — todos com exit 0. Estado de referência: **113 files / 1749 passed / 6 skipped (HEAD `d118a68`)**.
 - **`git add` seletivo** por ficheiros explícitos do ciclo — nunca `git add -A`.
 - **Push nunca automático**: só com instrução explícita do utilizador.
 - **Migrações de base de dados só com autorização escrita** (Regra #99): aplicar por ficheiro único e nunca executar `supabase db push`/seed em produção; prod nunca automático (ver `DATABASE.md`).
 - **Protocolo anti-loop**: R1 cada comando executado 1x; R2 outputs grandes → `$env:TEMP` + `Tail`; R3 cada gate 1x; R4 PARAR após o relatório.
 - **Fail-safe por domínio**: erro numa fonte contribui zero itens e a funcionalidade não cai (briefing, memória, mute).
 - **Sem `ts-ignore`, sem `as any`, sem skips** em código novo.
+- **Delta de testes obrigatório**: cada vaga de trabalho deve adicionar testes net-new ≥ 5 (regra P7a: baseline 1732 → target 1737, atingido 1749). Verificar `pnpm test` e comparar com baseline registado no AGENTS.md.

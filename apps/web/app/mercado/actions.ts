@@ -2,7 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/session";
-import { ServicesRequestFlow, MarketplaceFlow } from "@rpg/core";
+import { ServicesRequestFlow, MarketplaceFlow, hasPermission } from "@rpg/core";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
@@ -308,6 +308,10 @@ export async function submitQuoteAction(formData: FormData) {
   const ctx = await getSessionContext();
   if (!ctx) {
     return { error: "Não autenticado" };
+  }
+
+  if (!hasPermission(ctx.permissions, "marketplace.quotes.create")) {
+    return { error: "Sem permissão para criar propostas" };
   }
 
   const itemsJson = formData.get("items") as string;
