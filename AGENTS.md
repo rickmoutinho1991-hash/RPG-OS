@@ -3,8 +3,8 @@
 ## ESTADO ATUAL DO PROGRAMA (HANDOFF VIVO)
 > Auto-manutenção: no fecho de CADA ciclo ou vaga de commits, atualizar HEAD, contagens de gates e menu desta secção (máx 40 linhas). Doutrina completa: secção própria abaixo — nunca duplicar aqui.
 
-- HEAD selado: e23f0cb (14-09-2026) | árvore limpa | P7a-F fecho forense GREEN
-- Gates de referência: 4x exit 0 — 113 files / 1749 passed / 6 skipped (+17 tests)
+- HEAD selado: 7a95127 (15-09-2026) | árvore limpa | P7b Mercado Transacional II GREEN
+- Gates de referência: 4x exit 0 — 113 files / 1754 passed / 6 skipped (+5 tests)
 - Subsistemas: landing pública (demo fictícia marcada, zero Supabase público) · **showcase público de capacidades por ator (catálogo derivado da nav + anchor nav)** · **Command Center com catálogo de serviços (reutiliza derivação P6) + painel O Mercado (dados reais, fail-safe, mini-stepper 8 passos)** · **mercado transacional I — pedidos e propostas (createRequest/submitQuote via core, scoping sessão, RLS least-privilege)** · briefing cross-domain §38 com mute via memória · memória IA (user_memories, RLS owner-only, audit sem value) · RLS 100% tabelas public (S1+S2, health service-only) · **demo opt-in por ?demo=1 + ALLOW_DEMO_ACCESS (dev-only), dados 100% sintéticos (lib/demo), banner rotulado** · SW auto-version (sw-version.json gerado no build) · Capacitor PREPARED_ONLY (android/ tracked, APK bloqueado por SSR)
 - DB: migrações commitadas; DEV aplicado até 20260913170000_enable_rls_health + reconciliação schema_migrations completa; PROD nunca automático (Regra #99)
 - Toolchain: pnpm 11 + onlyBuiltDependencies commitado; prisma NÃO é dependência (tipos de fonte commitada); suspeita de toolchain → clone fresco em $env:TEMP, nunca confiar em node_modules
