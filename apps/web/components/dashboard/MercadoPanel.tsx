@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 interface MarketRequest {
@@ -373,12 +374,12 @@ export async function MercadoPanel({
     return (
       <section aria-label="O Mercado" style={{ marginTop: "24px" }}>
         <div className="card" style={{ padding: "24px", textAlign: "center" }}>
-          <p style={{ color: "var(--muted)", margin: "0 0 12px" }}>
+          <p style={{ color: "var(--muted)", margin: "0 0 16px" }}>
             Ainda não há pedidos no mercado.
           </p>
-          <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>
-            O fluxo de criação de pedidos chega no próximo ciclo.
-          </p>
+          <Link href="/mercado/pedidos/novo" className="button">
+            Novo pedido
+          </Link>
         </div>
       </section>
     );
