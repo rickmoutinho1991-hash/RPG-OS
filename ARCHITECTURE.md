@@ -29,3 +29,10 @@ A organização ativa é escolhida por cookie apenas entre memberships válidas 
 
 ## Landing pública (demo)
 - Fora de sessão, `/` renderiza marcadores e demos (`BriefingDemo`, `MarketCycleStepper`, `MultiActorTabs`, `MemoryControlPreview`, `PublicCTA`) alimentadas pelo módulo fictício `apps/web/lib/demo/marketplaceStory.ts`, etiquetado "Demonstração · dados fictícios". Zero acesso a Supabase no ramo público.
+
+## Mercado transacional
+- Loop completo pedido→garantia: pedido → propostas (quote) → aceitação/rejeição → conversão em contrato → milestones (SUBMITTED/APPROVED) → evidência → pagamento → garantia. Estados centrais em `packages/core/src/marketplace` (`ServiceRequest`, `ServiceQuote`, `OrderMilestonesField`, `OrderWorkflowStatus`).
+- As transições de estado (acceptQuote, rejectQuote, convertToContract, submitMilestone, approveMilestone) vivem **só no core** (OrderMilestoneFlow) e validam autorização com `assertResponsibleParty` — funcionário e cliente são as únicas partes admitidas, deny-closed em cada passo.
+- Efeitos financeiros/garantia na camada web, **idempotentes**: pagamento regista receita (provider) e despesa (client) em EUR com guard `marketplace_milestone_payments` (`UNIQUE(milestone_id)`); garantia emitida uma única vez (`UNIQUE(warranties.order_id)`) a partir de `service_quotes.warranty_months` no COMPLETED.
+- Evidência de milestone em bucket privado `marketplace-evidence` (15 MB; pdf/jpeg/png/webp), upload sempre server-side (service_role) com nome derivado do milestone e validação fail-closed; leitura via `canAccessEvidence` deny-closed (owner ou partes) na rota `/api/mercado/evidence/[id]/download`.
+- RLS: leitura de contratos/garantias/pagamentos pelas partes via políticas `contracts_parties_all` + classe de partes; bucket sem acesso público (`public=false`).

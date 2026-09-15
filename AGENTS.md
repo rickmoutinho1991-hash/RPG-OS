@@ -3,15 +3,14 @@
 ## ESTADO ATUAL DO PROGRAMA (HANDOFF VIVO)
 > Auto-manutenção: no fecho de CADA ciclo ou vaga de commits, atualizar HEAD, contagens de gates e menu desta secção (máx 40 linhas). Doutrina completa: secção própria abaixo — nunca duplicar aqui.
 
-- HEAD selado: 9975f69 (15-09-2026) | árvore limpa | P7c Mercado Transacional III GREEN — evidência (bucket privado), pagamento e garantia
-- Gates de referência: 4x exit 0 — 115 files / 1760 passed / 6 skipped (+5 tests)
-- Subsistemas: landing pública (demo fictícia marcada, zero Supabase público) · **showcase público de capacidades por ator (catálogo derivado da nav + anchor nav)** · **Command Center com catálogo de serviços (reutiliza derivação P6) + painel O Mercado (dados reais, fail-safe, mini-stepper 8 passos)** · **mercado transacional I — pedidos e propostas (createRequest/submitQuote via core, scoping sessão, RLS least-privilege)** · **mercado transacional II — aceitação, contrato e milestones (acceptQuote/rejectQuote/convertToContract via core)** · **mercado transacional III — evidência + pagamento + garantia (bucket privado marketplace-evidence, EvidenceServiceImpl core, pagamento em ambas as partes com guard idempotente, garantia única por contrato em COMPLETED, rota de download deny-closed, loop pedido→garantia fechado)** · briefing cross-domain §38 com mute via memória · memória IA (user_memories, RLS owner-only, audit sem value) · RLS 100% tabelas public (S1+S2, health service-only) · **demo opt-in por ?demo=1 + ALLOW_DEMO_ACCESS (dev-only), dados 100% sintéticos (lib/demo), banner rotulado** · SW auto-version (sw-version.json gerado no build) · Capacitor PREPARED_ONLY (android/ tracked, APK bloqueado por SSR)
-- DB: migrações commitadas; DEV aplicado até 20260919000000_marketplace_transacional_iii (bucket privado marketplace-evidence + tabela evidence RLS + marketplace_milestone_payments + require_evidence + UNIQUE warranties.order_id) + reconciliação schema_migrations completa; PROD nunca automático (Regra #99)
-- Toolchain: pnpm 11 + onlyBuiltDependencies commitado; prisma NÃO é dependência (tipos de fonte commitada); suspeita de toolchain → clone fresco em $env:TEMP, nunca confiar em node_modules
-- Docs de referência: docs/DEPLOY.md (prod HTTPS + ALLOW_DEMO_ACCESS nunca em prod), docs/DATABASE.md ou DATABASE.md raiz (migrações), ARCHITECTURE.md (subsistemas + RLS least-privilege)
-- MENU: B2 = APK wrapper remoto (SÓ com deploy HTTPS próprio existente) · push remoto PENDENTE de autorização do owner (git push -u origin HEAD)
-- Loop de mercado pedido→garantia VERIFICADO por RAIO-X v2 em 15-09-2026: RLS 0 gaps, bucket privado, drift 0, rotas sem 500, segredos 0
-- Modo: MANUTENÇÃO — novos ciclos só por ordem explícita do owner
+- HEAD 0f4e5ef | 15-09-2026 | árvore limpa | RAIO-X v2 GREEN
+- Gates: 4x0 — 115 files / 1760 pass / 6 skip; delta de testes obrigatório em todo relatório
+- Loop de mercado COMPLETO e verificado: pedido→propostas→aceitação→contrato→milestones→evidência→pagamento→garantia; transições só no core; efeitos (finanças/garantia) idempotentes na web
+- Segurança: RLS 0 gaps public · bucket marketplace-evidence privado · audit sem value · demo opt-in ?demo=1 sintético · segredos tracked 0 · rotas mercado login-gated (200 shell, escolha UX registada)
+- DB: 46 migrações = disco; DEV aplicado; PROD nunca automático (Regra #99)
+- Release: checklist docs/DEPLOY.md exige RAIO-X verde em prod antes de anunciar
+- Toolchain: pnpm 11; suspeita → clone fresco em $env:TEMP
+- Menu: B2 (SÓ pós-deploy HTTPS) · push pendente owner · polish sob indicação
 
 ## Arquitetura do RPG-OS (Personal + Business Operating System)
 

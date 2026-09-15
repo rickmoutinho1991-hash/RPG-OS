@@ -2,6 +2,8 @@
 
 Sistema operativo digital pessoal e empresarial para tarefas, agenda, clientes, projetos, faturação, documentos, comunicação e governação organizacional.
 
+- Mercado: do pedido à garantia (propostas, contrato, milestones, evidência, pagamento, garantia)
+
 ## Demonstração pública
 
 Fora de sessão, a página pública (`/`) apresenta o produto com marcadores e
