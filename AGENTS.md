@@ -3,9 +3,10 @@
 ## ESTADO ATUAL DO PROGRAMA (HANDOFF VIVO)
 > Auto-manutenção: no fecho de CADA ciclo ou vaga de commits, atualizar HEAD, contagens de gates e menu desta secção (máx 40 linhas). Doutrina completa: secção própria abaixo — nunca duplicar aqui.
 
-- HEAD 4c5d2de | 15-09-2026 | árvore limpa | RAIO-X v2 GREEN
+- HEAD eb7fcca | 15-09-2026 | árvore limpa | RAIO-X v2 GREEN
 - 15-09-2026: história reescrita para remover blobs .turbo (>100MB); SHAs pré-rewritten preservados em D:\Projetos\rpg-os-pre-rewrite.bundle (offline); remoto origin/main = pós-rewrite
 - 15-09-2026: limpeza adicional .next na história (R5); top blob agora <50MB
+- Smoke de produção (doutrina H3): `pnpm start` em `apps/web` (root não tem script start); probes esperados `/`=200, `/login`=200, `/registo`=200, `/dashboard`=307, `/api/memories`=401 — hotfix PublicAnchorNav `use client`
 - Gates: 4x0 — 115 files / 1760 pass / 6 skip; delta de testes obrigatório em todo relatório
 - Loop de mercado COMPLETO e verificado: pedido→propostas→aceitação→contrato→milestones→evidência→pagamento→garantia; transições só no core; efeitos (finanças/garantia) idempotentes na web
 - Segurança: RLS 0 gaps public · bucket marketplace-evidence privado · audit sem value · demo opt-in ?demo=1 sintético · segredos tracked 0 · rotas mercado login-gated (200 shell, escolha UX registada)
