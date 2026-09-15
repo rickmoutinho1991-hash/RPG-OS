@@ -51,6 +51,9 @@ pnpm install && pnpm build && pnpm start
 4. **API nunca cacheada**: `/api/...` (dados) nunca vem do cache do SW.
 5. **Auth fail-closed**: `GET /api/memories` sem sessão responde `401`
    `{"error":"unauthenticated"}`.
+6. **RAIO-X (bloco F1 PASSO 0) corre verde em prod antes de anunciar release**:
+   gates 4x exit 0, drift migrações 0, RLS 0 gaps, buckets privados, rotas sem
+   500, segredos 0.
 
 ## Nota
 

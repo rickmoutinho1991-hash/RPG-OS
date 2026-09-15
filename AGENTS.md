@@ -10,6 +10,7 @@
 - Toolchain: pnpm 11 + onlyBuiltDependencies commitado; prisma NÃO é dependência (tipos de fonte commitada); suspeita de toolchain → clone fresco em $env:TEMP, nunca confiar em node_modules
 - Docs de referência: docs/DEPLOY.md (prod HTTPS + ALLOW_DEMO_ACCESS nunca em prod), docs/DATABASE.md ou DATABASE.md raiz (migrações), ARCHITECTURE.md (subsistemas + RLS least-privilege)
 - MENU: B2 = APK wrapper remoto (SÓ com deploy HTTPS próprio existente) · push remoto PENDENTE de autorização do owner (git push -u origin HEAD)
+- Loop de mercado pedido→garantia VERIFICADO por RAIO-X v2 em 15-09-2026: RLS 0 gaps, bucket privado, drift 0, rotas sem 500, segredos 0
 - Modo: MANUTENÇÃO — novos ciclos só por ordem explícita do owner
 
 ## Arquitetura do RPG-OS (Personal + Business Operating System)
