@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * RPG-OS — Navegação por âncoras da página pública (sticky).
  * scroll suave com fallback prefers-reduced-motion.
