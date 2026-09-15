@@ -10,7 +10,7 @@ Antes de aplicar a uma base remota, executar `supabase migration list` e rever o
 
 ## Aplicar migrações
 
-- **DEV (stack local Supabase):** `supabase migration list --local` seguido de `supabase db push` (ou, para uma migração específica, aplicar apenas o ficheiro correspondente). Nunca aplicar migrações alheias apenas por estarem pendentes: rever o `migration list` primeiro.
+- **DEV (stack local Supabase):** acesso em **Docker Desktop** — stack do projeto corre no container `supabase_db_RPG-OS`; `docker exec -i supabase_db_RPG-OS psql -U postgres -d postgres`. `supabase migration list --local` seguido de `supabase db push` (ou, para uma migração específica, aplicar apenas o ficheiro correspondente). Nunca aplicar migrações alheias apenas por estarem pendentes: rever o `migration list` primeiro.
 - **PRODUÇÃO: nunca automático.** O `push`/CLI contra prod só acontece com revisão humana e aprovação explícita; o caminho normal é revisão do script + aplicação manual (`psql`) ou pipeline de migração previamente aprovado. Nunca executar seed em produção.
 
 `20260913100000_create_user_memories.sql` adiciona a tabela de memória de IA do utilizador (`user_memories`, com RLS por `user_id`).

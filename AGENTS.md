@@ -3,7 +3,8 @@
 ## ESTADO ATUAL DO PROGRAMA (HANDOFF VIVO)
 > Auto-manutenção: no fecho de CADA ciclo ou vaga de commits, atualizar HEAD, contagens de gates e menu desta secção (máx 40 linhas). Doutrina completa: secção própria abaixo — nunca duplicar aqui.
 
-- HEAD 0f4e5ef | 15-09-2026 | árvore limpa | RAIO-X v2 GREEN
+- HEAD 89a382d | 15-09-2026 | árvore limpa | RAIO-X v2 GREEN
+- 15-09-2026: história reescrita para remover blobs .turbo (>100MB); SHAs pré-rewritten preservados em D:\Projetos\rpg-os-pre-rewrite.bundle (offline); remoto origin/main = pós-rewrite
 - Gates: 4x0 — 115 files / 1760 pass / 6 skip; delta de testes obrigatório em todo relatório
 - Loop de mercado COMPLETO e verificado: pedido→propostas→aceitação→contrato→milestones→evidência→pagamento→garantia; transições só no core; efeitos (finanças/garantia) idempotentes na web
 - Segurança: RLS 0 gaps public · bucket marketplace-evidence privado · audit sem value · demo opt-in ?demo=1 sintético · segredos tracked 0 · rotas mercado login-gated (200 shell, escolha UX registada)
@@ -118,7 +119,7 @@ pnpm build
 
 ## Doutrina operacional dos ciclos
 
-- **Gates 4x obrigatórios** antes de qualquer commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` — todos com exit 0. Estado de referência: **115 files / 1760 passed / 6 skipped (HEAD `9975f69`)**.
+- **Gates 4x obrigatórios** antes de qualquer commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` — todos com exit 0. Estado de referência: **115 files / 1760 passed / 6 skipped (HEAD `89a382d`)**.
 - **`git add` seletivo** por ficheiros explícitos do ciclo — nunca `git add -A`.
 - **Push nunca automático**: só com instrução explícita do utilizador.
 - **Migrações de base de dados só com autorização escrita** (Regra #99): aplicar por ficheiro único e nunca executar `supabase db push`/seed em produção; prod nunca automático (ver `DATABASE.md`).
