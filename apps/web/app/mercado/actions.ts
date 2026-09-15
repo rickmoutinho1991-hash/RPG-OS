@@ -2,6 +2,8 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/session";
+import { uploadMilestoneEvidence } from "@/lib/marketplace/evidence";
+import { recordMilestonePayment, emitMilestoneWarranty } from "@/lib/marketplace/payments";
 import { ServicesRequestFlow, MarketplaceFlow, hasPermission } from "@rpg/core";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -650,6 +652,7 @@ export async function acceptQuoteAction(formData: FormData) {
       due_date: quote.estimated_start_date ? new Date(new Date(quote.estimated_start_date).getTime() + (idx + 1) * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null,
       amount_cents: Math.round(item.total_cents / (quoteItems?.length ?? 1)),
       status: "PENDING" as const,
+      require_evidence: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }));
@@ -704,11 +707,56 @@ export async function getContractAction(input: GetContractInput) {
     .eq("id", contract.request_id)
     .single();
 
+  const milestones: any[] =
+    (contract.contract_milestones?.sort((a: any, b: any) =>
+      a.created_at.localeCompare(b.created_at),
+    ) ?? []) as any[];
+
+  const milestoneIds = milestones.map((m) => m.id);
+
+  let evidenceRows: any[] = [];
+  let paymentRows: any[] = [];
+  let warrantyRows: any[] = [];
+
+  try {
+    const { data } = await supabase
+      .from("evidence")
+      .select("id, related_entity_id, title, category, status, mime_type, size_bytes, created_at")
+      .eq("related_entity_type", "MILESTONE")
+      .in("related_entity_id", milestoneIds.length > 0 ? milestoneIds : [""]);
+    evidenceRows = data ?? [];
+  } catch (err) {
+    console.error("[getContractAction] Falha a ler evidências:", err);
+  }
+
+  try {
+    const { data } = await supabase
+      .from("marketplace_milestone_payments")
+      .select("id, milestone_id, amount_cents, currency, paid_at")
+      .eq("contract_id", input.contractId);
+    paymentRows = data ?? [];
+  } catch (err) {
+    console.error("[getContractAction] Falha a ler pagamentos:", err);
+  }
+
+  try {
+    const { data } = await supabase
+      .from("warranties")
+      .select("id, warranty_period_months, start_date, end_date, coverage, status")
+      .eq("order_id", input.contractId);
+    warrantyRows = data ?? [];
+  } catch (err) {
+    console.error("[getContractAction] Falha a ler garantias:", err);
+  }
+
   return {
     contract: {
       ...contract,
-      milestones: contract.contract_milestones?.sort((a: any, b: any) => a.created_at.localeCompare(b.created_at)) ?? [],
+      milestones,
       request,
+      evidence: evidenceRows,
+      payments: paymentRows,
+      warranties: warrantyRows,
     },
   };
 }
@@ -755,6 +803,35 @@ export async function submitMilestoneAction(formData: FormData) {
   }
 
   try {
+    if (milestone.require_evidence) {
+      const rawFile = formData.get("file");
+      const file =
+        rawFile instanceof File
+          ? {
+              name: rawFile.name ?? null,
+              type: rawFile.type ?? null,
+              size: rawFile.size ?? null,
+              buffer: new Uint8Array(await rawFile.arrayBuffer()),
+            }
+          : null;
+
+      if (!file) {
+        return { error: "Evidência do milestone é obrigatória (PDF, JPG, PNG ou WEBP, máx. 15 MB)" };
+      }
+
+      const partyIds =
+        contract.provider_id === ctx.user.id ? [contract.provider_id, contract.client_id] : [contract.client_id, contract.provider_id];
+
+      const upload = await uploadMilestoneEvidence({
+        milestoneId: milestone.id,
+        providerId: ctx.user.id,
+        partyIds,
+        file,
+        milestoneTitle: milestone.title ?? "Milestone",
+      });
+      if (!upload.ok) return { error: upload.error };
+    }
+
     const { error: updateError } = await supabase
       .from("contract_milestones")
       .update({
@@ -838,6 +915,22 @@ export async function approveMilestoneAction(formData: FormData) {
     if (updateError) throw updateError;
 
     if (input.approve) {
+      try {
+        await recordMilestonePayment(
+          {
+            id: contract.id,
+            client_id: contract.client_id,
+            provider_id: contract.provider_id,
+            adjudicated_quote_id: contract.adjudicated_quote_id,
+            status: contract.status,
+          },
+          { id: milestone.id, contract_id: contract.id, title: milestone.title ?? "Milestone", amount_cents: milestone.amount_cents ?? 0 },
+          ctx.user.id,
+        );
+      } catch (err) {
+        console.error("[approveMilestoneAction] Falha no registo de pagamento:", err);
+      }
+
       const { data: allMilestones } = await supabase
         .from("contract_milestones")
         .select("status")
@@ -845,10 +938,33 @@ export async function approveMilestoneAction(formData: FormData) {
 
       const allApproved = allMilestones?.every(m => m.status === "APPROVED") ?? false;
       if (allApproved) {
-        await supabase
+        const { error: completeError } = await supabase
           .from("contracts")
           .update({ status: "COMPLETED", updated_at: new Date().toISOString() })
           .eq("id", input.contractId);
+        if (completeError) throw completeError;
+
+        const { data: quote } = await supabase
+          .from("service_quotes")
+          .select("warranty_months, terms")
+          .eq("id", contract.adjudicated_quote_id)
+          .maybeSingle();
+
+        try {
+          await emitMilestoneWarranty(
+            {
+              id: contract.id,
+              client_id: contract.client_id,
+              provider_id: contract.provider_id,
+              adjudicated_quote_id: contract.adjudicated_quote_id,
+              status: "COMPLETED",
+            },
+            quote ? { warranty_months: quote.warranty_months, terms: quote.terms } : null,
+            ctx.user.id,
+          );
+        } catch (err) {
+          console.error("[approveMilestoneAction] Falha na emissão de garantia:", err);
+        }
       }
     }
 

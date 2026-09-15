@@ -12,10 +12,39 @@ interface ContractMilestone {
   due_date: string | null;
   amount_cents: number;
   status: string;
+  require_evidence: boolean;
   submitted_at: string | null;
   approved_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface ContractEvidence {
+  id: string;
+  related_entity_id: string;
+  title: string;
+  category: string;
+  status: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+interface ContractPayment {
+  id: string;
+  milestone_id: string;
+  amount_cents: number;
+  currency: string;
+  paid_at: string;
+}
+
+interface ContractWarranty {
+  id: string;
+  warranty_period_months: number;
+  start_date: string;
+  end_date: string;
+  coverage: string;
+  status: string;
 }
 
 interface Contract {
@@ -29,6 +58,9 @@ interface Contract {
   created_at: string;
   updated_at: string;
   milestones: ContractMilestone[];
+  evidence: ContractEvidence[];
+  payments: ContractPayment[];
+  warranties: ContractWarranty[];
   request?: {
     title: string;
     description: string;
@@ -66,6 +98,7 @@ export default function ContratoPage({
   const [error, setError] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [files, setFiles] = useState<Record<string, File>>({});
 
   useEffect(() => {
     async function load() {
@@ -97,9 +130,13 @@ export default function ContratoPage({
     if (!contract) return;
     setActionLoading(milestoneId);
     try {
+      const milestone = contract.milestones?.find((m) => m.id === milestoneId);
       const formData = new FormData();
       formData.append("contractId", contract.id);
       formData.append("milestoneId", milestoneId);
+      if (milestone?.require_evidence && files[milestoneId]) {
+        formData.append("file", files[milestoneId]);
+      }
       const res = await fetch("/api/mercado/milestone/submit", {
         method: "POST",
         body: formData,
@@ -196,6 +233,9 @@ export default function ContratoPage({
     a.created_at.localeCompare(b.created_at)
   ) ?? [];
 
+  const milestoneEvidence = (milestoneId: string) =>
+    (contract.evidence ?? []).filter((ev) => ev.related_entity_id === milestoneId);
+
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
@@ -265,16 +305,46 @@ export default function ContratoPage({
               </div>
             )}
 
-            <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap", alignItems: "center" }}>
               {isProvider && (milestone.status === "PENDING" || milestone.status === "IN_PROGRESS") && (
-                <button
-                  className="button"
-                  style={{ fontSize: "13px" }}
-                  disabled={actionLoading === milestone.id}
-                  onClick={() => handleSubmitMilestone(milestone.id)}
-                >
-                  {actionLoading === milestone.id ? "A submeter..." : "Marcar concluído"}
-                </button>
+                <>
+                  {milestone.require_evidence && (
+                    <label style={{ fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/png,image/webp"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) setFiles((prev) => ({ ...prev, [milestone.id]: f }));
+                        }}
+                      />
+                      {files[milestone.id] ? `✓ ${files[milestone.id].name}` : "Evidência obrigatória (PDF/JPG/PNG/WEBP máx. 15 MB)"}
+                    </label>
+                  )}
+                  <button
+                    className="button"
+                    style={{ fontSize: "13px" }}
+                    disabled={actionLoading === milestone.id || (milestone.require_evidence && !files[milestone.id])}
+                    onClick={() => handleSubmitMilestone(milestone.id)}
+                  >
+                    {actionLoading === milestone.id ? "A submeter..." : "Marcar concluído"}
+                  </button>
+                </>
+              )}
+
+              {milestoneEvidence(milestone.id).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {milestoneEvidence(milestone.id).map((ev) => (
+                    <a
+                      key={ev.id}
+                      href={`/api/mercado/evidence/${ev.id}/download`}
+                      className="button secondary"
+                      style={{ fontSize: "12px" }}
+                    >
+                      ↓ Evidência
+                    </a>
+                  ))}
+                </div>
               )}
 
               {isOwner && milestone.status === "SUBMITTED" && (
@@ -313,6 +383,44 @@ export default function ContratoPage({
           </article>
         ))}
       </section>
+
+      {contract.payments && contract.payments.length > 0 && (
+        <section>
+          <h2 style={{ margin: "0 0 16px", fontSize: "18px" }}>Pagamentos ({contract.payments.length})</h2>
+          <div className="card" style={{ padding: "20px" }}>
+            {contract.payments.map((payment) => (
+              <div key={payment.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border, #eee)" }}>
+                <span>
+                  {contract.milestones?.find((m) => m.id === payment.milestone_id)?.title || "Milestone"}
+                </span>
+                <span style={{ fontWeight: 600 }}>{formatEuro(payment.amount_cents)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {contract.warranties && contract.warranties.length > 0 && (
+        <section>
+          <h2 style={{ margin: "0 0 16px", fontSize: "18px" }}>Garantia</h2>
+          <div className="card" style={{ padding: "20px" }}>
+            {contract.warranties.map((warranty) => (
+              <div key={warranty.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border, #eee)" }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{warranty.warranty_period_months} meses</div>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                    {warranty.start_date} → {warranty.end_date}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>{warranty.coverage}</div>
+                </div>
+                <span className="badge success" style={{ fontSize: "11px", alignSelf: "center" }}>
+                  {warranty.status === "ACTIVE" ? "Ativa" : warranty.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
