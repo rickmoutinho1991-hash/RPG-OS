@@ -262,6 +262,8 @@ export const BUILTIN_ORG_ROLES: BuiltinRoleDefinition[] = [
       "inicio.view", "vida.view", "tarefas.view", "tarefas.create", "agenda.view",
       "comunicacao.view", "conhecimento.view", "documentos.view", "ia.view",
       "reputation.view", "reputation.create", "reputation.respond",
+      "marketplace.view", "marketplace.requests.create", "marketplace.requests.view",
+      "marketplace.quotes.create", "marketplace.quotes.view", "marketplace.contracts.view",
     ],
   },
   {
@@ -271,6 +273,8 @@ export const BUILTIN_ORG_ROLES: BuiltinRoleDefinition[] = [
     permissions: [
       "inicio.view", "vida.view", "tarefas.view", "agenda.view", "comunicacao.view", "ia.view",
       "reputation.view",
+      "marketplace.view", "marketplace.requests.create", "marketplace.requests.view",
+      "marketplace.quotes.create", "marketplace.quotes.view", "marketplace.contracts.view",
     ],
   },
   {
@@ -280,6 +284,8 @@ export const BUILTIN_ORG_ROLES: BuiltinRoleDefinition[] = [
     permissions: [
       "inicio.view", "vida.view", "tarefas.view", "agenda.view", "comunicacao.view",
       "orcamentos.view", "ia.view", "reputation.view",
+      "marketplace.view", "marketplace.requests.create", "marketplace.requests.view",
+      "marketplace.quotes.create", "marketplace.quotes.view", "marketplace.contracts.view",
     ],
   },
   {
@@ -304,25 +310,25 @@ export const BUILTIN_ORG_ROLES: BuiltinRoleDefinition[] = [
     key: "CLIENT",
     label: "Cliente",
     level: 20,
-    permissions: ["inicio.view", "vida.view", "orcamentos.view", "faturacao.view", "obras.view", "reputation.view", "reputation.create", "reputation.respond"],
+    permissions: ["inicio.view", "vida.view", "orcamentos.view", "faturacao.view", "obras.view", "reputation.view", "reputation.create", "reputation.respond", "marketplace.view", "marketplace.requests.create", "marketplace.requests.view", "marketplace.quotes.view", "marketplace.contracts.view"],
   },
   {
     key: "SUPPLIER",
     label: "Fornecedor",
     level: 20,
-    permissions: ["inicio.view", "vida.view", "comunicacao.view", "reputation.view"],
+    permissions: ["inicio.view", "vida.view", "comunicacao.view", "reputation.view", "marketplace.view", "marketplace.quotes.create", "marketplace.quotes.view", "marketplace.requests.view", "marketplace.contracts.view"],
   },
   {
     key: "GUEST",
     label: "Convidado(a)",
     level: 30,
-    permissions: ["inicio.view", "vida.view", "reputation.view"],
+    permissions: ["inicio.view", "vida.view", "reputation.view", "marketplace.view"],
   },
   {
     key: "VIEWER",
     label: "Observador (leitura)",
     level: 30,
-    permissions: ["inicio.view", "vida.view", "tarefas.view", "comunicacao.view", "reputation.view"],
+    permissions: ["inicio.view", "vida.view", "tarefas.view", "comunicacao.view", "reputation.view", "marketplace.view"],
   },
 ];
 

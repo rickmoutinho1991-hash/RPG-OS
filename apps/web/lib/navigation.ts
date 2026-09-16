@@ -27,6 +27,13 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ href: "/", label: "Command Center" }],
   },
   {
+    label: "Mercado",
+    items: [
+      { href: "/mercado", label: "Oportunidades" },
+      { href: "/mercado/contratos", label: "Contratos" },
+    ],
+  },
+  {
     label: "Operações",
     items: [{ href: "/operacoes", label: "Centro de Operações" }],
   },
@@ -111,6 +118,9 @@ export const PAGE_PERMISSIONS: Record<string, string> = {
   "/saude": "saude.view",
   "/saude/receitas": "saude.view",
   "/": "inicio.view",
+  "/mercado": "marketplace.view",
+  "/mercado/contratos": "marketplace.contracts.view",
+  "/mercado/pedidos/novo": "marketplace.requests.create",
   "/operacoes": "operations.view",
   "/tarefas": "tarefas.view",
   "/agenda": "agenda.view",

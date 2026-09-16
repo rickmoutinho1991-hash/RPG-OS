@@ -62,6 +62,34 @@ export const MODULES: ModuleDefinition[] = [
   { id: "revenue", label: "Receita (Revenue Center)" },
   { id: "marketing", label: "Marketing AI (Autopilot)" },
   { id: "reputacao", label: "Reputação" },
+  { id: "marketplace", label: "Mercado & Oportunidades", personal: true },
+  { id: "contracts", label: "Contratos" },
+  { id: "orders", label: "Encomendas & Serviços" },
+  { id: "evidence", label: "Evidências & Provas" },
+];
+
+/**
+ * Baseline mínimo garantido a qualquer utilizador autenticado, mesmo sem
+ * organização: acesso às áreas pessoais e capacidade de transacionar no
+ * mercado (como cliente e como prestador). As ações continuam limitadas por
+ * RLS (auth.uid()), pelo que conceder aqui não expõe dados de terceiros.
+ */
+export const PERSONAL_BASELINE_PERMISSIONS: string[] = [
+  "inicio.view",
+  "vida.view",
+  "agenda.view",
+  "tarefas.view",
+  "documentos.view",
+  "diario.view",
+  "saude.view",
+  "ia.view",
+  "reputacao.view",
+  "marketplace.view",
+  "marketplace.requests.create",
+  "marketplace.requests.view",
+  "marketplace.quotes.create",
+  "marketplace.quotes.view",
+  "marketplace.contracts.view",
 ];
 
 /** Verifica se um conjunto de permissões satisfaz a permissão pedida. */

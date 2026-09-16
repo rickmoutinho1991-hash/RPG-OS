@@ -9,7 +9,6 @@ interface MarketRequest {
   status: string;
   categoryId: string;
   clientId: string;
-  providerId?: string;
   urgency: string;
   desiredStartDate?: string;
   createdAt: string;
@@ -70,7 +69,6 @@ interface DbServiceRequest {
   status: string;
   category_id: string;
   client_id: string;
-  provider_id?: string;
   urgency: string;
   desired_start_date?: string;
   created_at: string;
@@ -150,7 +148,6 @@ function toMarketRequest(r: DbServiceRequest): MarketRequest {
     status: r.status,
     categoryId: r.category_id,
     clientId: r.client_id,
-    providerId: r.provider_id,
     urgency: r.urgency,
     desiredStartDate: r.desired_start_date,
     createdAt: r.created_at,
@@ -206,14 +203,36 @@ function toMarketWarranty(w: DbWarranty): MarketWarranty {
   };
 }
 
-async function fetchMercadoData(
-  userId: string,
-  companyId: string | null
-): Promise<MercadoPanelData> {
+async function fetchMercadoData(userId: string): Promise<MercadoPanelData> {
   const supabase = createAdminClient();
 
   try {
-    let requestsQuery = supabase
+    // Pedidos onde o utilizador é cliente OU prestador (tem proposta submetida).
+    // `service_requests` não tem provider_id/company_id — o lado prestador
+    // resolve-se pelos pedidos em que o utilizador já apresentou proposta.
+    let providerRequestIds: string[] = [];
+    try {
+      const { data: quoteRows } = await supabase
+        .from("service_quotes")
+        .select("request_id")
+        .eq("provider_id", userId);
+      providerRequestIds = Array.from(
+        new Set(
+          ((quoteRows ?? []) as { request_id: string }[]).map((q) => q.request_id),
+        ),
+      );
+    } catch {
+      providerRequestIds = [];
+    }
+
+    const filterParts = [
+      `client_id.eq.${userId}`,
+      providerRequestIds.length > 0
+        ? `id.in.(${providerRequestIds.join(",")})`
+        : null,
+    ].filter((p): p is string => Boolean(p));
+
+    const requestsQuery = supabase
       .from("service_requests")
       .select(
         `
@@ -223,7 +242,6 @@ async function fetchMercadoData(
         status,
         category_id,
         client_id,
-        provider_id,
         urgency,
         desired_start_date,
         created_at,
@@ -239,13 +257,9 @@ async function fetchMercadoData(
         )
       `
       )
-      .or(`client_id.eq.${userId},provider_id.eq.${userId}`)
+      .or(filterParts.join(","))
       .order("created_at", { ascending: false })
       .limit(10);
-
-    if (companyId) {
-      requestsQuery = requestsQuery.eq("company_id", companyId);
-    }
 
     const { data: requests, error: requestsError } = await requestsQuery;
 
@@ -338,14 +352,8 @@ function getNextAction(status: string, quotesCount: number): string {
   }
 }
 
-export async function MercadoPanel({
-  userId,
-  companyId,
-}: {
-  userId: string;
-  companyId: string | null;
-}) {
-  const data = await fetchMercadoData(userId, companyId);
+export async function MercadoPanel({ userId }: { userId: string }) {
+  const data = await fetchMercadoData(userId);
 
   if (data.error) {
     return (

@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   resolveEffectivePermissions,
   hasPermission,
+  PERSONAL_BASELINE_PERMISSIONS,
   type SessionContext,
   type OrgMembership,
   type CustomRole,
@@ -96,6 +97,13 @@ export async function getSessionContext(): Promise<SessionContext | null> {
       customRoles,
     ).permissions;
   }
+
+  // Baseline pessoal: garante as áreas pessoais e o acesso ao mercado a
+  // qualquer utilizador autenticado, com ou sem organização (espaço único
+  // pessoal + trabalho). Nunca subtrai permissões de RBAC.
+  permissions = Array.from(
+    new Set([...permissions, ...PERSONAL_BASELINE_PERMISSIONS]),
+  );
 
   return {
     user: {

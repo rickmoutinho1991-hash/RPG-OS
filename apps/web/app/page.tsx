@@ -154,7 +154,7 @@ export default async function CommandCenterPage() {
     collectActionAlerts(ctx, companyId),
     loadMutedCategories(ctx),
     collectCommandCenterKPIs(ctx, companyId),
-    MercadoPanel({ userId: ctx.user.id, companyId }),
+    MercadoPanel({ userId: ctx.user.id }),
   ]);
   const briefing = composeBriefingLines(alerts, { mutedCategories });
   const briefingLines = briefing.lines;

@@ -50,7 +50,7 @@ describe("MercadoPanel - P5-B tests", () => {
     };
     (createAdminClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockClient);
 
-    const panel = await MercadoPanel({ userId: "user-123", companyId: null });
+    const panel = await MercadoPanel({ userId: "user-123" });
     
     expect(panel).toBeTruthy();
     // Verify the panel renders empty state without creation CTA
@@ -94,7 +94,7 @@ describe("MercadoPanel - P5-B tests", () => {
     };
     (createAdminClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockClient);
 
-    const panel = await MercadoPanel({ userId: "user-123", companyId: null });
+    const panel = await MercadoPanel({ userId: "user-123" });
     expect(panel).toBeTruthy();
     // Verify stepper shows step 2 (QUOTES_RECEIVED = step 1, but index-based = 1, so step 2 visually)
     // Verify quotes count shows 2

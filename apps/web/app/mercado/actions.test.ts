@@ -8,47 +8,55 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-let mockAcceptQuote: ReturnType<typeof vi.fn>;
-let mockRejectQuote: ReturnType<typeof vi.fn>;
-let mockConvertToContract: ReturnType<typeof vi.fn>;
-let mockCreateOrderFromQuote: ReturnType<typeof vi.fn>;
-let mockSubmitMilestone: ReturnType<typeof vi.fn>;
-let mockApproveMilestone: ReturnType<typeof vi.fn>;
-let mockHasPermission: ReturnType<typeof vi.fn>;
-
-class MockMarketplaceFlow {
-  acceptQuote = mockAcceptQuote;
-  rejectQuote = mockRejectQuote;
-  convertToContract = mockConvertToContract;
-  createOrderFromQuote = mockCreateOrderFromQuote;
-}
-
-class MockServicesRequestFlow {
-  addQuoteToRequest = vi.fn();
-}
-
-class MockOrderMilestoneFlow {
-  submitMilestone = mockSubmitMilestone;
-  approveMilestone = mockApproveMilestone;
-}
-
-vi.mock("@rpg/core", () => {
-  mockAcceptQuote = vi.fn();
-  mockRejectQuote = vi.fn();
-  mockConvertToContract = vi.fn();
-  mockCreateOrderFromQuote = vi.fn();
-  mockSubmitMilestone = vi.fn();
-  mockApproveMilestone = vi.fn();
-  mockHasPermission = vi.fn((permissions: string[], permission: string) =>
-    permissions.includes("*") || permissions.includes(permission)
+const mocks = vi.hoisted(() => {
+  const acceptQuote = vi.fn();
+  const rejectQuote = vi.fn();
+  const convertToContract = vi.fn();
+  const createOrderFromQuote = vi.fn();
+  const submitMilestone = vi.fn();
+  const approveMilestone = vi.fn();
+  const hasPermission = vi.fn(
+    (permissions: string[], permission: string) =>
+      Array.isArray(permissions) &&
+      (permissions.includes("*") || permissions.includes(permission)),
   );
+
+  class MockMarketplaceFlow {
+    acceptQuote = acceptQuote;
+    rejectQuote = rejectQuote;
+    convertToContract = convertToContract;
+    createOrderFromQuote = createOrderFromQuote;
+  }
+
+  class MockServicesRequestFlow {
+    addQuoteToRequest = vi.fn();
+  }
+
+  class MockOrderMilestoneFlow {
+    submitMilestone = submitMilestone;
+    approveMilestone = approveMilestone;
+  }
+
   return {
-    ServicesRequestFlow: MockServicesRequestFlow,
-    MarketplaceFlow: MockMarketplaceFlow,
-    OrderMilestoneFlow: MockOrderMilestoneFlow,
-    hasPermission: mockHasPermission,
+    acceptQuote,
+    rejectQuote,
+    convertToContract,
+    createOrderFromQuote,
+    submitMilestone,
+    approveMilestone,
+    hasPermission,
+    MockMarketplaceFlow,
+    MockServicesRequestFlow,
+    MockOrderMilestoneFlow,
   };
 });
+
+vi.mock("@rpg/core", () => ({
+  ServicesRequestFlow: mocks.MockServicesRequestFlow,
+  MarketplaceFlow: mocks.MockMarketplaceFlow,
+  OrderMilestoneFlow: mocks.MockOrderMilestoneFlow,
+  hasPermission: mocks.hasPermission,
+}));
 
 describe("Mercado Actions - P7b tests", () => {
   beforeEach(() => {
@@ -151,21 +159,21 @@ describe("Mercado Actions - P7b tests", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      mockAcceptQuote.mockReturnValue({
+      mocks.acceptQuote.mockReturnValue({
         entity: acceptedQuoteEntity,
         previousState: "SENT",
         newState: "ACCEPTED",
         events: [{ type: "QUOTE_ACCEPTED", payload: {}, timestamp: new Date().toISOString(), actorId: "client-1", entityType: "quote", entityId: "quote-1" }],
       });
 
-      mockRejectQuote.mockReturnValue({
+      mocks.rejectQuote.mockReturnValue({
         entity: rejectedQuoteEntity,
         previousState: "SENT",
         newState: "REJECTED",
         events: [{ type: "QUOTE_REJECTED", payload: {}, timestamp: new Date().toISOString(), actorId: "client-1", entityType: "quote", entityId: "quote-2" }],
       });
 
-      mockConvertToContract.mockReturnValue({
+      mocks.convertToContract.mockReturnValue({
         entity: convertedQuoteEntity,
         previousState: "ACCEPTED",
         newState: "CONVERTED_TO_CONTRACT",
@@ -243,9 +251,9 @@ describe("Mercado Actions - P7b tests", () => {
 
       expect(result.success).toBe(true);
       expect(result.contractId).toBeTruthy();
-      expect(mockAcceptQuote).toHaveBeenCalled();
-      expect(mockRejectQuote).toHaveBeenCalled();
-      expect(mockConvertToContract).toHaveBeenCalled();
+      expect(mocks.acceptQuote).toHaveBeenCalled();
+      expect(mocks.rejectQuote).toHaveBeenCalled();
+      expect(mocks.convertToContract).toHaveBeenCalled();
     });
 
     it("não-dono não aceita -> action recusa (b)", async () => {
@@ -731,5 +739,33 @@ describe("Mercado Actions - P7b tests", () => {
       expect(result.error).toBeTruthy();
       expect(result.error).toContain("não está em estado elegível");
     });
+  });
+});
+
+describe("createRequestAction - guarda de permissão (M-B)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("sem marketplace.requests.create recusa sem escrever (c)", async () => {
+    (getSessionContext as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      user: { id: "user-1", name: "User" },
+      organization: null,
+      permissions: ["marketplace.view"],
+    });
+
+    const formData = new FormData();
+    formData.append("title", "Pedido de teste");
+    formData.append("description", "Descrição do pedido");
+    formData.append("categoryId", "cat-1");
+    formData.append("budgetType", "FIXED");
+    formData.append("budgetAmountCents", "1000");
+    formData.append("budgetCurrency", "EUR");
+
+    const { createRequestAction } = await import("@/app/mercado/actions");
+    const result = await createRequestAction(formData);
+
+    expect(result.error).toContain("Sem permissão");
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 });

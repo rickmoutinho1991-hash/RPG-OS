@@ -23,6 +23,21 @@ export interface ProfessionalArea {
   specialities: string[];
 }
 
+/**
+ * Módulos e permissões de mercado comuns a todas as áreas: o mercado de
+ * oportunidades é transversal (pessoas, independentes, empresas e clientes
+ * finais) e nunca deve ser escondido pela especialização do ator.
+ */
+const MARKET_MODULES = ["/mercado", "/mercado/contratos"];
+const MARKET_GRANTS = [
+  "marketplace.view",
+  "marketplace.requests.create",
+  "marketplace.requests.view",
+  "marketplace.quotes.create",
+  "marketplace.quotes.view",
+  "marketplace.contracts.view",
+];
+
 export const PROFESSIONAL_AREAS: ProfessionalArea[] = [
   {
     id: "enfermagem",
@@ -37,6 +52,7 @@ export const PROFESSIONAL_AREAS: ProfessionalArea[] = [
       "/documentos",
       "/clientes",
       "/perfil",
+      ...MARKET_MODULES,
     ],
     grants: [
       "saude.view",
@@ -45,6 +61,7 @@ export const PROFESSIONAL_AREAS: ProfessionalArea[] = [
       "documentos.view",
       "clientes.view",
       "inicio.view",
+      ...MARKET_GRANTS,
     ],
     specialities: [
       "Enfermeiro(a)",
@@ -67,6 +84,7 @@ export const PROFESSIONAL_AREAS: ProfessionalArea[] = [
       "/documentos",
       "/guias",
       "/perfil",
+      ...MARKET_MODULES,
     ],
     grants: [
       "obras.view",
@@ -77,6 +95,7 @@ export const PROFESSIONAL_AREAS: ProfessionalArea[] = [
       "documentos.view",
       "guias.view",
       "inicio.view",
+      ...MARKET_GRANTS,
     ],
     specialities: [
       "Diretor de Obra / Engenheiro",
@@ -107,6 +126,7 @@ export const PROFESSIONAL_AREAS: ProfessionalArea[] = [
       "/agenda",
       "/perfil",
       "/reputacao",
+      ...MARKET_MODULES,
     ],
     grants: [
       "clientes.view",
@@ -122,6 +142,7 @@ export const PROFESSIONAL_AREAS: ProfessionalArea[] = [
       "agenda.view",
       "reputation.view",
       "inicio.view",
+      ...MARKET_GRANTS,
     ],
     specialities: [
       "Gestor(a) / Administrador(a)",

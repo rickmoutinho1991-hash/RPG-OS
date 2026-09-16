@@ -183,6 +183,10 @@ export async function createRequestAction(formData: FormData) {
     return { error: "Não autenticado" };
   }
 
+  if (!hasPermission(ctx.permissions, "marketplace.requests.create")) {
+    return { error: "Sem permissão para criar pedidos no mercado" };
+  }
+
   const input: CreateRequestInput = {
     title: formData.get("title") as string,
     description: formData.get("description") as string,
