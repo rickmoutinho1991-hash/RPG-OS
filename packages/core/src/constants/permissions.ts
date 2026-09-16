@@ -32,6 +32,7 @@ export interface ModuleDefinition {
 }
 
 export const MODULES: ModuleDefinition[] = [
+  { id: "saude", label: "Saúde & Enfermagem", personal: true },
   { id: "inicio", label: "Início", personal: true },
   { id: "agenda", label: "Agenda", personal: true },
   { id: "tarefas", label: "Tarefas", personal: true },

@@ -14,13 +14,20 @@ import {
   type NavItem,
   type NavGroup,
 } from "@/lib/navigation";
+import { filterNavGroupsByArea } from "@/lib/areas";
 
 export type { NavItem, NavGroup };
-export { NAV_GROUPS, PAGE_PERMISSIONS, filterNavGroups };
+export { NAV_GROUPS, PAGE_PERMISSIONS, filterNavGroups, filterNavGroupsByArea };
 
-export default function Sidebar({ permissions }: { permissions: string[] }) {
+export default function Sidebar({
+  permissions,
+  areaId,
+}: {
+  permissions: string[];
+  areaId?: string | null;
+}) {
   const pathname = usePathname();
-  const groups = filterNavGroups(permissions);
+  const groups = filterNavGroupsByArea(permissions, areaId);
 
   return (
     <aside className="sidebar">

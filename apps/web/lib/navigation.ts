@@ -16,6 +16,13 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ href: "/vida", label: "A Minha Vida" }],
   },
   {
+    label: "Saúde & Enfermagem",
+    items: [
+      { href: "/saude", label: "A Minha Saúde" },
+      { href: "/saude/receitas", label: "Receitas" },
+    ],
+  },
+  {
     label: "Início",
     items: [{ href: "/", label: "Command Center" }],
   },
@@ -101,6 +108,8 @@ export const NAV_GROUPS: NavGroup[] = [
 /** Permissão exigida para ver cada página na navegação. */
 export const PAGE_PERMISSIONS: Record<string, string> = {
   "/vida": "vida.view",
+  "/saude": "saude.view",
+  "/saude/receitas": "saude.view",
   "/": "inicio.view",
   "/operacoes": "operations.view",
   "/tarefas": "tarefas.view",

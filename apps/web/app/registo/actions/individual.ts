@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidPortugueseNif, sanitizeAuditMetadata } from "@rpg/core";
+import { resolveArea } from "@/lib/areas";
 import { ActionResponse } from "./cliente";
 
 export async function criarProfissionalAction(
@@ -19,6 +20,7 @@ export async function criarProfissionalAction(
   const especialidade = String(
     formData.get("especialidade") ?? "Construção Geral",
   ).trim();
+  const professionArea = resolveArea(String(formData.get("area") ?? "")).id;
 
   if (!nome || !nif || !email || !telefone) {
     return {
@@ -94,6 +96,7 @@ export async function criarProfissionalAction(
         phone: telefone,
         tax_number: nif,
         sector: "SOLE_TRADER",
+        profession_area: professionArea,
       },
       { onConflict: "user_id" },
     );
@@ -110,7 +113,7 @@ export async function criarProfissionalAction(
       module: "REGISTRATION",
       entity_type: "WORKER",
       entity_id: userId,
-      metadata: sanitizeAuditMetadata({ especialidade, nome, email }),
+      metadata: sanitizeAuditMetadata({ especialidade, profession_area: professionArea, nome, email }),
     });
 
     const { revalidatePath } = await import("next/cache");

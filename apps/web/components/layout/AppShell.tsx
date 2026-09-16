@@ -1,4 +1,5 @@
 import { getSessionContext } from "@/lib/session";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import PwaRegister from "./PwaRegister";
@@ -11,10 +12,21 @@ import { OrganizationProviderWrapper } from "./OrganizationProviderWrapper";
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const ctx = await getSessionContext();
 
+  let areaId: string | null = null;
+  if (ctx) {
+    const admin = createAdminClient();
+    const { data: areaProfile } = await admin
+      .from("profiles")
+      .select("profession_area")
+      .eq("user_id", ctx.user.id)
+      .maybeSingle();
+    areaId = (areaProfile?.profession_area as string | null) ?? null;
+  }
+
   return (
     <OrganizationProviderWrapper>
       <div className="app-shell">
-        <Sidebar permissions={ctx?.permissions ?? []} />
+        <Sidebar permissions={ctx?.permissions ?? []} areaId={areaId} />
         <main className="main-shell">
           <Topbar
             user={

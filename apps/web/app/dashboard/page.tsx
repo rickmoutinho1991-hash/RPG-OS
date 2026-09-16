@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/supabase/auth";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DemoDashboard } from "@/components/demo/DemoDashboard";
 import { isDemoRequest } from "@/lib/demoGate";
+import { areaModules, resolveArea } from "@/lib/areas";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export default async function DashboardPage({
   }
 
   // Contadores e métricas em tempo real
-  const [clientsRes, projectsRes, quotesRes, invoicesRes, recentAuditRes, eventsRes, remindersRes] = await Promise.all([
+  const [clientsRes, projectsRes, quotesRes, invoicesRes, recentAuditRes, eventsRes, remindersRes, areaRes] = await Promise.all([
     profilesQuery,
     projectsQuery,
     quotesQuery,
@@ -65,7 +66,11 @@ export default async function DashboardPage({
     auditQuery,
     supabase.from("calendar_events").select("*").eq("user_id", userId).eq("is_completed", false).order("start_time", { ascending: true }).limit(4),
     supabase.from("personal_reminders").select("*").eq("user_id", userId).limit(4),
+    supabase.from("profiles").select("profession_area").eq("user_id", userId).maybeSingle(),
   ]);
+
+  const area = resolveArea(areaRes.data?.profession_area ?? null);
+  const areaModuleLinks = areaModules(area.id);
 
   const totalClientes = clientsRes.count || 0;
   const recentProjects = projectsRes.data || [];
@@ -93,6 +98,29 @@ export default async function DashboardPage({
           </div>
         }
       />
+
+      {areaModuleLinks.length > 0 && (
+        <div className="card" style={{ marginTop: "20px" }}>
+          <div style={{ marginBottom: "12px" }}>
+            <h3 style={{ margin: 0 }}>A Minha Área — {area.label}</h3>
+            <p style={{ color: "var(--muted)", fontSize: "13px", margin: "4px 0 0" }}>
+              {area.description}
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            {areaModuleLinks.map((m) => (
+              <Link
+                key={m.href}
+                href={m.href}
+                className="button secondary"
+                style={{ fontSize: "13px", padding: "6px 12px" }}
+              >
+                {m.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="metrics" style={{ marginTop: "20px" }}>
         <div className="card">

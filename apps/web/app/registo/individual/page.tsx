@@ -4,10 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { criarProfissionalAction } from "../actions/individual";
 import { ActionResponse } from "../actions/cliente";
+import { PROFESSIONAL_AREAS, specialitiesForArea } from "@/lib/areas";
 
 export default function IndividualRegistoPage() {
   const [state, setState] = useState<ActionResponse | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [area, setArea] = useState("construcao");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,7 +30,7 @@ export default function IndividualRegistoPage() {
       <div className="page-header">
         <div>
           <h2>Registo de Profissional / Técnico</h2>
-          <p>Registo de colaboradores técnicos, encarregados e operacionais para alocação a obras.</p>
+          <p>Escolha a área de atuação — o RPG-OS adapta o seu espaço de trabalho aos módulos essenciais dessa área.</p>
         </div>
         <Link href="/registo" className="button secondary">
           ← Voltar aos Registos
@@ -76,16 +78,29 @@ export default function IndividualRegistoPage() {
             </div>
 
             <div className="form-field">
+              <label htmlFor="area">Área Profissional *</label>
+              <select
+                id="area"
+                name="area"
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+              >
+                {PROFESSIONAL_AREAS.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
               <label htmlFor="especialidade">Especialidade / Categoria Técnica *</label>
-              <select id="especialidade" name="especialidade" defaultValue="Encarregado Geral">
-                <option value="Diretor de Obra / Engenheiro">Diretor de Obra / Engenheiro</option>
-                <option value="Encarregado Geral">Encarregado Geral</option>
-                <option value="Eletricista Certificado">Eletricista Certificado</option>
-                <option value="Canalizador / AVAC">Canalizador / AVAC</option>
-                <option value="Pedreiro de 1ª">Pedreiro de 1ª</option>
-                <option value="Pintor / Estucador">Pintor / Estucador</option>
-                <option value="Carpinteiro / Marceneiro">Carpinteiro / Marceneiro</option>
-                <option value="Operador de Máquinas">Operador de Máquinas</option>
+              <select id="especialidade" name="especialidade" key={area} defaultValue={specialitiesForArea(area)[0]}>
+                {specialitiesForArea(area).map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </div>
 
