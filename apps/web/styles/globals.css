@@ -1,15 +1,66 @@
-﻿:root {
-  --bg: #f4f6f8;
+﻿/*
+ * RPG-OS — Design tokens (fonte única da identidade visual)
+ * ---------------------------------------------------------
+ * Toda a UI lê destes tokens (var(--...)); não introduzir cores/raios/sombras
+ * soltos em componentes. Paleta: neutros slate + acento azul de marca.
+ */
+:root {
+  /* Neutros */
+  --bg: #f5f7fa;
   --surface: #ffffff;
   --surface-soft: #f8fafc;
-  --border: #e5e7eb;
-  --text: #111827;
-  --muted: #6b7280;
-  --primary: #111827;
-  --primary-soft: #eef2ff;
+  --surface-muted: #f1f5f9;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-soft: #334155;
+  --muted: #64748b;
+
+  /* Marca */
+  --brand: #2563eb;
+  --brand-strong: #1d4ed8;
+  --brand-soft: #eff6ff;
+  --brand-contrast: #ffffff;
+
+  /* Estados */
   --success: #15803d;
+  --success-soft: #dcfce7;
   --warning: #b45309;
+  --warning-soft: #fef3c7;
   --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+
+  /* Superfícies escuras (shell) */
+  --ink: #0f172a;
+  --ink-soft: #1e293b;
+  --ink-border: #334155;
+  --ink-text: #cbd5e1;
+  --ink-muted: #94a3b8;
+  --on-ink: #f8fafc;
+
+  /* Compat (tokens legados) */
+  --primary: var(--brand);
+  --primary-soft: var(--brand-soft);
+
+  /* Tipografia */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* Raio */
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  /* Sombra */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.1),
+    0 8px 10px -6px rgba(15, 23, 42, 0.06);
+
+  /* Movimento */
+  --transition: 0.15s ease;
 }
 
 * {
@@ -26,7 +77,9 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
@@ -49,8 +102,8 @@ textarea {
 .sidebar {
   width: 250px;
   min-height: 100vh;
-  background: #111827;
-  color: white;
+  background: var(--ink);
+  color: var(--on-ink);
   display: flex;
   flex-direction: column;
   padding: 24px 16px;
@@ -70,11 +123,11 @@ textarea {
 .brand-mark {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   display: grid;
   place-items: center;
-  background: white;
-  color: #111827;
+  background: var(--brand);
+  color: var(--brand-contrast);
   font-weight: 800;
 }
 
@@ -86,7 +139,7 @@ textarea {
 .sidebar-brand span {
   display: block;
   margin-top: 3px;
-  color: #9ca3af;
+  color: var(--ink-muted);
   font-size: 10px;
 }
 
@@ -98,27 +151,27 @@ textarea {
 
 .sidebar-link {
   padding: 12px 14px;
-  border-radius: 9px;
-  color: #d1d5db;
+  border-radius: var(--radius-sm);
+  color: var(--ink-text);
   font-size: 14px;
-  transition: .15s ease;
+  transition: var(--transition);
 }
 
 .sidebar-link:hover,
 .sidebar-link.active {
-  background: #1f2937;
-  color: white;
+  background: var(--ink-soft);
+  color: var(--on-ink);
 }
 
 .sidebar-link.active {
-  box-shadow: inset 3px 0 0 white;
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 .sidebar-bottom {
   margin-top: auto;
   padding: 16px 10px 4px;
-  border-top: 1px solid #374151;
-  color: #9ca3af;
+  border-top: 1px solid var(--ink-border);
+  color: var(--ink-muted);
   display: flex;
   justify-content: space-between;
   font-size: 11px;
@@ -180,8 +233,8 @@ textarea {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #111827;
-  color: white;
+  background: var(--ink);
+  color: var(--on-ink);
   font-weight: 700;
 }
 
@@ -210,21 +263,22 @@ textarea {
 
 .button {
   border: 0;
-  border-radius: 8px;
-  background: #111827;
-  color: white;
+  border-radius: var(--radius-sm);
+  background: var(--brand);
+  color: var(--brand-contrast);
   padding: 11px 16px;
   cursor: pointer;
   font-weight: 600;
+  transition: var(--transition);
 }
 
 .button:hover {
-  background: #1f2937;
+  background: var(--brand-strong);
 }
 
 .button.secondary {
-  background: white;
-  color: #111827;
+  background: var(--surface);
+  color: var(--text);
   border: 1px solid var(--border);
 }
 
@@ -236,10 +290,11 @@ textarea {
 }
 
 .card {
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 20px;
+  box-shadow: var(--shadow-sm);
 }
 
 .metric-label {
@@ -314,23 +369,23 @@ textarea {
 
 .badge {
   display: inline-flex;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 5px 9px;
   font-size: 10px;
   font-weight: 700;
-  background: #f3f4f6;
+  background: var(--surface-muted);
 }
 
 .badge.success {
-  background: #dcfce7;
+  background: var(--success-soft);
 }
 
 .badge.warning {
-  background: #fef3c7;
+  background: var(--warning-soft);
 }
 
 .badge.danger {
-  background: #fee2e2;
+  background: var(--danger-soft);
 }
 
 .table-card {
@@ -392,10 +447,11 @@ textarea {
 .form-field textarea {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: white;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
   padding: 11px 12px;
   outline: none;
+  transition: var(--transition);
 }
 
 .form-field textarea {
@@ -406,7 +462,8 @@ textarea {
 .form-field input:focus,
 .form-field select:focus,
 .form-field textarea:focus {
-  border-color: #9ca3af;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
 .form-actions {
@@ -424,16 +481,17 @@ textarea {
 
 .registo-card {
   display: block;
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 24px;
-  transition: .15s ease;
+  transition: var(--transition);
 }
 
 .registo-card:hover {
   transform: translateY(-2px);
-  border-color: #9ca3af;
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
 }
 
 .registo-card h3 {
@@ -530,16 +588,16 @@ textarea {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: #0f172a;
+  background: var(--ink);
   padding: 24px;
 }
 
 .login-card {
   width: 100%;
   max-width: 440px;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
   padding: 36px 32px;
 }
 
@@ -556,8 +614,8 @@ textarea {
 }
 
 .brand-badge {
-  background: #1e293b;
-  color: #ffffff;
+  background: var(--brand);
+  color: var(--brand-contrast);
   font-weight: 800;
   font-size: 13px;
   padding: 4px 8px;
@@ -567,20 +625,20 @@ textarea {
 .login-header h2 {
   margin: 0;
   font-size: 24px;
-  color: #0f172a;
+  color: var(--text);
   font-weight: 800;
 }
 
 .login-subtitle {
   margin: 6px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
 .login-tabs {
   display: flex;
-  background: #f1f5f9;
-  border-radius: 8px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
   padding: 4px;
   margin-bottom: 20px;
 }
@@ -592,16 +650,16 @@ textarea {
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--muted);
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: var(--transition);
 }
 
 .tab-btn.active {
-  background: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
 }
 
 .login-form {
@@ -617,7 +675,7 @@ textarea {
 }
 
 .forgot-link, .signup-link {
-  color: #2563eb;
+  color: var(--brand);
   font-size: 12px;
   font-weight: 600;
 }
@@ -632,26 +690,26 @@ textarea {
 
 .help-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.5;
   margin: 4px 0 12px;
 }
 
 .gov-auth-box {
   padding: 16px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 10px;
+  background: var(--surface-soft);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
   text-align: center;
 }
 
 .login-footer {
   margin-top: 24px;
   padding-top: 18px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--surface-muted);
   text-align: center;
   font-size: 13px;
-  color: #64748b;
+  color: var(--muted);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -659,26 +717,26 @@ textarea {
 
 .alert {
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   margin-bottom: 16px;
   line-height: 1.4;
 }
 
 .alert-danger {
-  background: #fef2f2;
+  background: var(--danger-soft);
   color: #991b1b;
   border: 1px solid #fecaca;
 }
 
 .alert-success {
-  background: #f0fdf4;
+  background: var(--success-soft);
   color: #166534;
   border: 1px solid #bbf7d0;
 }
 
 .alert-info {
-  background: #eff6ff;
+  background: var(--brand-soft);
   color: #1e40af;
   border: 1px solid #bfdbfe;
 }
@@ -697,22 +755,24 @@ textarea {
   min-width: 260px;
   padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   outline: none;
-  background: white;
+  background: var(--surface);
+  transition: var(--transition);
 }
 
 .search-input:focus {
-  border-color: #9ca3af;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
 .filter-select {
   padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  background: white;
+  background: var(--surface);
   outline: none;
 }
 
@@ -724,22 +784,22 @@ textarea {
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--surface-muted);
+  color: var(--text-soft);
 }
 
 .progress-bar-bg {
   width: 100%;
   height: 8px;
-  background: #e2e8f0;
-  border-radius: 999px;
+  background: var(--border);
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background: #0f172a;
-  border-radius: 999px;
+  background: var(--brand);
+  border-radius: var(--radius-pill);
   transition: width 0.3s ease;
 }
 
