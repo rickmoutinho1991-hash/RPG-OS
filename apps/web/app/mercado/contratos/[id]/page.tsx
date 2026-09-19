@@ -35,6 +35,9 @@ interface ContractPayment {
   milestone_id: string;
   amount_cents: number;
   currency: string;
+  fee_bps: number | null;
+  fee_cents: number | null;
+  net_cents: number | null;
   paid_at: string;
 }
 
@@ -386,16 +389,46 @@ export default function ContratoPage({
 
       {contract.payments && contract.payments.length > 0 && (
         <section>
-          <h2 style={{ margin: "0 0 16px", fontSize: "18px" }}>Pagamentos ({contract.payments.length})</h2>
+          <h2 style={{ margin: "0 0 16px", fontSize: "18px" }}>
+            Pagamentos ({contract.payments.length}){" "}
+            <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: 400 }}>
+              — valor bruto; comissão RPG-OS de 3% (300 bps) retida em cada pagamento
+            </span>
+          </h2>
           <div className="card" style={{ padding: "20px" }}>
-            {contract.payments.map((payment) => (
-              <div key={payment.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border, #eee)" }}>
-                <span>
-                  {contract.milestones?.find((m) => m.id === payment.milestone_id)?.title || "Milestone"}
-                </span>
-                <span style={{ fontWeight: 600 }}>{formatEuro(payment.amount_cents)}</span>
-              </div>
-            ))}
+            {contract.payments.map((payment) => {
+              const milestoneTitle =
+                contract.milestones?.find((m) => m.id === payment.milestone_id)?.title || "Milestone";
+              const hasFee = (payment.fee_cents ?? 0) > 0;
+              return (
+                <div
+                  key={payment.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "10px 0",
+                    borderBottom: "1px solid var(--border, #eee)",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ minWidth: "180px" }}>
+                    <div style={{ fontWeight: 600 }}>{milestoneTitle}</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                      {isProvider && hasFee
+                        ? `Recebe ${formatEuro(payment.net_cents ?? 0)} · comissão ${formatEuro(payment.fee_cents ?? 0)}`
+                        : "Pago"}
+                    </div>
+                  </div>
+                  <div style={{ fontWeight: 600 }}>
+                    {hasFee && isProvider
+                      ? formatEuro(payment.net_cents ?? 0)
+                      : formatEuro(payment.amount_cents)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

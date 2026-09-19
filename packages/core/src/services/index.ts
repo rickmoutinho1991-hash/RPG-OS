@@ -2,6 +2,7 @@ export * from "./RegistrationService";
 export * from "./QuoteCalculationService";
 export * from "./FinancialCalculationService";
 export * from "./PlatformFeeService";
+export * from "./marketplaceFees";
 export * from "./fiscalCalculations";
 export * from "./RbacService";
 export * from "./delegation";

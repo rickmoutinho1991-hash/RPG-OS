@@ -1,9 +1,12 @@
 /**
- * RPG-OS — Pagamento + Garantia de Marketplace (P7c).
+ * RPG-OS — Pagamento + Garantia de Marketplace (P7c / M-F).
  *
  * No approve de milestone (owner):
  *  - receita no provider (finance_incomes) + despesa no client
  *    (finance_expenses), valores em EUR (centavos -> euro);
+ *  - comissão da plataforma (modelo 3% = 300 bps por defeito): o cliente paga
+ *    o BRUTO, a plataforma retém a fee (platform_fees, snapshot imutável) e o
+ *    prestador recebe o LÍQUIDO (gross − fee);
  *  - guard de idempotência por milestone (marketplace_milestone_payments);
  * Em contrato COMPLETED:
  *  - garantia automática a partir dos termos da proposta adjudicada
@@ -13,6 +16,11 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAuditEvent } from "@/lib/audit";
+import {
+  computeMilestoneFee,
+  resolveMarketplaceFeeBps,
+} from "@rpg/core";
+import type { FeeConfigSnapshot } from "@rpg/core";
 
 export interface PaymentContractLike {
   id: string;
@@ -33,6 +41,10 @@ export interface RecordMilestonePaymentResult {
   duplicated: boolean;
   incomeId?: string;
   expenseId?: string;
+  feeBps?: number;
+  feeCents?: number;
+  netCents?: number;
+  feeRecorded?: boolean;
 }
 
 /**
@@ -55,7 +67,18 @@ export async function recordMilestonePayment(
     return { duplicated: true };
   }
 
+  // Comissão da plataforma: config global ativa; sem nenhuma → 3% (300 bps).
+  const { data: feeConfigs } = await supabase
+    .from("platform_fee_config")
+    .select("company_id, basis_points, is_active")
+    .eq("company_id", null);
+  const basisPoints = resolveMarketplaceFeeBps(
+    (feeConfigs ?? []) as unknown as FeeConfigSnapshot[],
+  );
+  const fee = computeMilestoneFee(milestone.amount_cents, basisPoints);
+
   const amountEuro = milestone.amount_cents / 100;
+  const netEuro = fee.netCents / 100;
   const today = new Date().toISOString().slice(0, 10);
   const reference = `milestone=${milestone.id};contrato=${contract.id}`;
 
@@ -66,7 +89,7 @@ export async function recordMilestonePayment(
       company_id: null,
       source: `Pagamento de contrato — ${contract.id.slice(0, 8)}`,
       category: "FREELANCE",
-      amount: amountEuro,
+      amount: netEuro,
       recurrence: "ONE_TIME",
       expected_date: today,
       is_active: false,
@@ -92,7 +115,7 @@ export async function recordMilestonePayment(
     .single();
   if (expenseError || !expense) throw expenseError ?? new Error("expense insert failed");
 
-  const { error: guardError } = await supabase
+  const { data: guard, error: guardError } = await supabase
     .from("marketplace_milestone_payments")
     .insert({
       contract_id: contract.id,
@@ -103,9 +126,17 @@ export async function recordMilestonePayment(
       currency: "EUR",
       income_id: income.id,
       expense_id: expense.id,
+      fee_bps: fee.basisPoints,
+      fee_cents: fee.feeCents,
+      net_cents: fee.netCents,
       paid_at: new Date().toISOString(),
-    });
+    })
+    .select("id")
+    .single();
   if (guardError) throw guardError;
+
+  // Ledger da comissão (snapshot imutável; unique(source_type, source_id)).
+  const feeRecorded = await recordPlatformFee(guard.id, milestone.amount_cents, fee);
 
   try {
     await recordAuditEvent({
@@ -119,6 +150,9 @@ export async function recordMilestonePayment(
         contractId: contract.id,
         milestoneId: milestone.id,
         amountCents: milestone.amount_cents,
+        feeCents: fee.feeCents,
+        netCents: fee.netCents,
+        feeRecorded,
         incomeId: String(income.id),
         expenseId: String(expense.id),
       },
@@ -127,7 +161,43 @@ export async function recordMilestonePayment(
     console.error("[Marketplace] Audit de pagamento falhou:", err);
   }
 
-  return { duplicated: false, incomeId: String(income.id), expenseId: String(expense.id) };
+  return {
+    duplicated: false,
+    incomeId: String(income.id),
+    expenseId: String(expense.id),
+    feeBps: fee.basisPoints,
+    feeCents: fee.feeCents,
+    netCents: fee.netCents,
+    feeRecorded,
+  };
+}
+
+/**
+ * Persiste a comissão da plataforma no ledger (`platform_fees`).
+ * Não-fatal: o pagamento já está liquidado; falhas ficam registadas em audit.
+ */
+async function recordPlatformFee(
+  paymentId: string,
+  grossCents: number,
+  fee: { basisPoints: number; feeCents: number; netCents: number },
+): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("platform_fees").insert({
+    company_id: null,
+    source_type: "MARKETPLACE_PAYMENT",
+    source_id: paymentId,
+    gross_cents: grossCents,
+    basis_points: fee.basisPoints,
+    fee_cents: fee.feeCents,
+    net_cents: fee.netCents,
+    currency: "EUR",
+    status: "COLLECTED",
+  });
+  if (error) {
+    console.error("[Marketplace] Registo da comissão falhou:", error);
+    return false;
+  }
+  return true;
 }
 
 export interface WarrantableQuoteLike {

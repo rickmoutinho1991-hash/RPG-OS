@@ -736,7 +736,7 @@ export async function getContractAction(input: GetContractInput) {
   try {
     const { data } = await supabase
       .from("marketplace_milestone_payments")
-      .select("id, milestone_id, amount_cents, currency, paid_at")
+      .select("id, milestone_id, amount_cents, currency, fee_bps, fee_cents, net_cents, paid_at")
       .eq("contract_id", input.contractId);
     paymentRows = data ?? [];
   } catch (err) {
