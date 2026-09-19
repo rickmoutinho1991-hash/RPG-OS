@@ -16,3 +16,4 @@ export * from "./atReadiness";
 export * from "./atSubmission";
 export * from "./personalIrsPreparation";
 export * from "./granularRbac";
+export * from "./roleResolution";

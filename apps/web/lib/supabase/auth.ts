@@ -1,7 +1,10 @@
 import { createClient } from "./server";
 import { createAdminClient } from "./admin";
 import { AuthenticatedUser } from "@rpg/core";
-import { SYSTEM_ROLES, SystemRole } from "@rpg/core";
+import {
+  resolveSystemPermissions,
+  resolveSystemRole,
+} from "@rpg/core";
 
 export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   try {
@@ -29,10 +32,10 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
       .select("roles(name)")
       .eq("user_id", user.id);
 
-    const primaryRole =
-      ((userRoles?.[0]?.roles as unknown as { name: string })
-        ?.name as SystemRole) || "ADMIN";
-    const permissions = SYSTEM_ROLES[primaryRole]?.permissions || [];
+    const primaryRole = resolveSystemRole(
+      (userRoles?.[0]?.roles as unknown as { name: string } | null)?.name,
+    );
+    const permissions = resolveSystemPermissions(primaryRole);
 
     const companyData = profile?.companies as unknown as {
       legal_name: string;
