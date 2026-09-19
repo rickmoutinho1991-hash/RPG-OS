@@ -27,7 +27,7 @@ pnpm test
 pnpm build
 ```
 
-Estado de referência: 107 ficheiros de teste / 1722 passed / 6 skipped (HEAD `d501280`).
+Estado de referência: 122 ficheiros de teste / 1805 passed / 6 skipped (HEAD `e6315f2`).
 
 ## Produção
 

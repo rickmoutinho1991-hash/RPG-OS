@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import {
   sendMessageAction,
@@ -8,6 +9,12 @@ import {
   startDmAction,
   markChannelReadAction,
 } from "./actions";
+import { createClient } from "@/lib/supabase/client";
+import {
+  realtimeChannelKey,
+  realtimeInsertFilter,
+  shouldSubscribeRealtime,
+} from "@/lib/comunicacao/realtime";
 
 export function CommsComposer({
   channelId,
@@ -214,5 +221,66 @@ export function CreateChannelForm() {
         Criar
       </button>
     </form>
+  );
+}
+
+export function RealtimeComms({
+  channelId,
+  channelIds,
+}: {
+  channelId: string | null | undefined;
+  channelIds: string[];
+}) {
+  const router = useRouter();
+  const [live, setLive] = useState(false);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  const subscribed = shouldSubscribeRealtime(channelId ?? "", channelIds);
+
+  useEffect(() => {
+    if (!subscribed || !channelId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(realtimeChannelKey(channelId))
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "comms_messages",
+          filter: realtimeInsertFilter(channelId),
+        },
+        () => {
+          router.refresh();
+          const element = document.querySelector('[data-comms-live="@latest"]');
+          element?.scrollIntoView({ behavior: "smooth", block: "end" });
+        },
+      )
+      .subscribe((status) => {
+        setLive(status === "SUBSCRIBED");
+      });
+    channelRef.current = channel;
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+      setLive(false);
+    };
+  }, [channelId, subscribed, router]);
+
+  if (!subscribed) return null;
+
+  return (
+    <span
+      className="badge"
+      title={live ? "Em direto — novas mensagens em tempo real" : "Realtime indisponível"}
+      style={{
+        fontSize: "10px",
+        padding: "2px 6px",
+        background: live ? "var(--success-muted)" : "var(--muted)",
+        color: live ? "var(--success)" : "var(--fg-muted)",
+      }}
+    >
+      {live ? "● direto" : "○ off"}
+    </span>
   );
 }

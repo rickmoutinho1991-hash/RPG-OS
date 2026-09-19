@@ -6,6 +6,7 @@ import {
   CreateChannelForm,
   DmStarter,
   MarkChannelRead,
+  RealtimeComms,
   ThreadReply,
 } from "./CommsClient";
 import {
@@ -250,7 +251,8 @@ export default async function CommsPage({
       <span className="topbar-eyebrow">RPG-OS Comms</span>
       <h1>Comunicação</h1>
 
-      {activeChannel && <MarkChannelRead channelId={activeChannel.id} />}
+      {activeChannel && <MarkChannelRead channelId={activeChannel.id} />}{" "}
+      {activeChannel && <RealtimeComms channelId={activeChannel.id} channelIds={[...myMemberships.keys()]} />}
 
       {isPersonal && dmChannels.length > 0 ? (
         <div style={{ margin: "12px 0 4px", fontSize: "13px", fontWeight: 600, color: "var(--muted)" }}>
