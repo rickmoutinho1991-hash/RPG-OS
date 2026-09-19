@@ -6,7 +6,8 @@
  * vivem em lib/navigation.ts — este ficheiro re-exporta tudo e renderiza a sidebar.
  */
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, type CSSProperties } from "react";
 import {
   NAV_GROUPS,
   PAGE_PERMISSIONS,
@@ -15,6 +16,14 @@ import {
   type NavGroup,
 } from "@/lib/navigation";
 import { filterNavGroupsByArea } from "@/lib/areas";
+import {
+  DEFAULT_MODE,
+  MODE_PERSONAL,
+  MODE_WORK,
+  orderGroupsForMode,
+  type SpaceMode,
+} from "@/lib/mode";
+import { setSpaceModeAction } from "@/lib/mode-actions";
 
 export type { NavItem, NavGroup };
 export { NAV_GROUPS, PAGE_PERMISSIONS, filterNavGroups, filterNavGroupsByArea };
@@ -22,12 +31,35 @@ export { NAV_GROUPS, PAGE_PERMISSIONS, filterNavGroups, filterNavGroupsByArea };
 export default function Sidebar({
   permissions,
   areaId,
+  mode = DEFAULT_MODE,
 }: {
   permissions: string[];
   areaId?: string | null;
+  mode?: SpaceMode;
 }) {
   const pathname = usePathname();
-  const groups = filterNavGroupsByArea(permissions, areaId);
+  const router = useRouter();
+  const [activeMode, setActiveMode] = useState<SpaceMode>(mode);
+  const groups = orderGroupsForMode(filterNavGroupsByArea(permissions, areaId), activeMode);
+
+  const changeMode = async (next: SpaceMode) => {
+    if (next === activeMode) return;
+    setActiveMode(next);
+    const result = await setSpaceModeAction(next);
+    if (result.ok) router.refresh();
+  };
+
+  const modeButtonStyle = (active: boolean): CSSProperties => ({
+    flex: 1,
+    padding: "5px 8px",
+    fontSize: "11px",
+    fontWeight: 700,
+    borderRadius: "6px",
+    border: "1px solid var(--border, #e2e8f0)",
+    background: active ? "var(--brand, #2563eb)" : "transparent",
+    color: active ? "#fff" : "var(--muted, #64748b)",
+    cursor: "pointer",
+  });
 
   return (
     <aside className="sidebar">
@@ -93,6 +125,33 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar-bottom">
+        <div
+          style={{
+            display: "flex",
+            gap: "6px",
+            marginBottom: "10px",
+            padding: "10px 12px 0",
+          }}
+          role="group"
+          aria-label="Modo de espaço: Pessoal ou Trabalho"
+        >
+          <button
+            type="button"
+            style={modeButtonStyle(activeMode === MODE_PERSONAL)}
+            onClick={() => changeMode(MODE_PERSONAL)}
+            aria-pressed={activeMode === MODE_PERSONAL}
+          >
+            Pessoal
+          </button>
+          <button
+            type="button"
+            style={modeButtonStyle(activeMode === MODE_WORK)}
+            onClick={() => changeMode(MODE_WORK)}
+            aria-pressed={activeMode === MODE_WORK}
+          >
+            Trabalho
+          </button>
+        </div>
         <div>
           <strong>RPG-OS</strong>
         </div>
