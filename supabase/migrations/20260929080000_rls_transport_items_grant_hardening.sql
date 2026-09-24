@@ -1,0 +1,23 @@
+-- RPG-OS — Vaga M-G/U: fechar a 10.ª tabela da classe M-G/O
+--
+-- Descoberta determinística (scan pós-M-G/T sobre TODOS os schemas):
+--   public.transport_document_items é a única tabela de aplicação com
+--   RLS_ON + 0 policies que ainda tinha grant a authenticated:
+--     relacl = postgres=arwdDxtm, authenticated=arwdm, service_role=arwdDxtm
+--   (o grant anon já foi removido na M-G/S).
+--
+-- Causa: a migração de origem 20260820220000_transport_and_saas.sql concedeu
+--   explicitamente apenas a service_role (linhas 70-72), mas o DEFAULT ACL
+--   (arwdDxtm para anon+authenticated) injectou os grants na criação; e a
+--   RLS foi ligada por um sweep posterior sem policy correspondente.
+--
+-- A app acede exclusivamente via createAdminClient() (service_role) —
+--   apps/web/app/guias/actions.ts:55,73,189. Com RLS_ON + 0 policies o acesso
+--   directo por authenticated devolve 0 rows; revogar é estritamente
+--   não-regressivo e remove a pólvora defensiva (se um dia se fizer
+--   DISABLE ROW SECURITY, a tabela ficaria exposta).
+--
+-- Ação: REVOKE ALL FROM anon, authenticated; mantêm-se postgres (owner) e
+--   service_role (BYPASSRLS). Idempotente.
+
+revoke all on table public.transport_document_items from anon, authenticated;
