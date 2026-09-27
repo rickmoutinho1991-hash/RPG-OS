@@ -120,7 +120,25 @@ export async function createDocumentAction(
         .maybeSingle();
 
       if (targetUser) {
-        resolvedOwnerId = targetUser.id;
+        // Fail-closed: atribuir documento a terceiros só se for membro da
+        // mesma empresa do ator. Sem empresa, apenas o próprio titular.
+        const { data: link } = await supabase
+          .from("company_employees")
+          .select("id")
+          .eq("user_id", targetUser.id)
+          .eq("company_id", user.companyId)
+          .maybeSingle();
+
+        if (link) {
+          resolvedOwnerId = targetUser.id;
+        } else {
+          return {
+            success: false,
+            error: "Não pode atribuir documentos a este titular.",
+          };
+        }
+      } else {
+        return { success: false, error: "Titular não encontrado." };
       }
     }
 
