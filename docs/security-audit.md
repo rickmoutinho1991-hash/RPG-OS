@@ -58,7 +58,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `2b7ef0f` | backfill do hash na tabela |
 | `e078c9e` | **varredura de permissões usadas vs concedidas** + limite 8 KiB em `api/memories` (ver "Varredura de permissões") |
 | `ece42a7` | **P0 segredos** — password admin removida da seed migration; teste de regressão de segredos (ver "Varredura de segredos/env") |
-| `(novo commit)` | **P1 RLS** — leitura global de moradas fechada (addresses); teste de regressão de policies (ver "Revisão RLS") |
+| `9fbe445` | **P1 RLS** — leitura global de moradas fechada (addresses); teste de regressão de policies (ver "Revisão RLS") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
