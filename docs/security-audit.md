@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 143 ficheiros / 1893 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 144 ficheiros / 1896 testes.
 
 ## Eixos de tenant
 
@@ -58,6 +58,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `2b7ef0f` | backfill do hash na tabela |
 | `e078c9e` | **varredura de permissões usadas vs concedidas** + limite 8 KiB em `api/memories` (ver "Varredura de permissões") |
 | `ece42a7` | **P0 segredos** — password admin removida da seed migration; teste de regressão de segredos (ver "Varredura de segredos/env") |
+| `(novo commit)` | **P1 RLS** — leitura global de moradas fechada (addresses); teste de regressão de policies (ver "Revisão RLS") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -232,6 +233,39 @@ usados como placeholders/aliases em `login/actions.ts`, `IntegracoesClient.tsx` 
 vários testes; param etrizar por ambiente é possível mas tem blast radius. Ação
 **externa obrigatória** (fora do código): rotacionar a password do admin em produção —
 o plaintext esteve no histórico git antes deste commit.
+
+## Revisão RLS (supabase/migrations)
+
+Extractor estático de políticas por tabela sobre `supabase/migrations/` (106
+`CREATE POLICY` em 135 tabelas public). **Todo o esquema tem RLS enabled**; a
+postura é deny-by-default (maioria das tabelas com RLS_ON + 0 policies) ou
+self-scoped (`auth.uid()`/`is_org_member`/`has_org_permission`). O serviço expõe
+`anon` a apenas 2 catálogos públicos com filtro (`categories.active`,
+`provider_offerings` PUBLISHED/APPROVED). As tabelas com dados fiscais/pagamentos
+expõem SELECT a membros de org/company — a app sobrepõe `hasPermission` na camada
+de serviço (RLS é defesa em profundidade; service_role faz bypass).
+
+**P1 — `addresses_authenticated_read`** (Vaga M-G/V): única policy
+`FOR SELECT TO authenticated USING (true)` sobre dados PESSOAIS. Moradas são dado
+pessoal por referência (`profiles.address_id`/`companies.address_id`) e a policy +
+default ACL expunha todas as moradas a qualquer autenticado (cross-tenant, RGPD).
+Sem consumidores legítimos: a app só escreve `addresses` via `createAdminClient()`
+(`registo/actions/{cliente,empresa,eni}.ts`). Fix (idempotente, padrão da Vaga
+M-G/U): `DROP POLICY ... addresses_authenticated_read` + `REVOKE ALL ... FROM
+anon, authenticated` → deny-by-default e sem "pólvora defensiva" se a RLS for
+desligada. Teste de regressão (3): `USING (true)` fora de catálogos RBAC tem de
+estar dropped; `anon` restrito aos 2 catálogos com filtro; addresses é dropped e
+revogada.
+
+**Aceites documentados (por desenho)**:
+- Catálogos RBAC `roles`/`permissions`/`role_permissions` legíveis por
+  authenticated (metadados de autorização, necessários para RBAC client-side);
+- `health_connections_read_person`/afins: subquery `om.user_id = auth.uid()`
+  reduz a self-only — MENOS permissivo que o intuito de partilha por org;
+  fail-closed, sem leak (rever quando a partilha de saúde com org for produto);
+- Leituras de org/company em financeiro/marketing/government/revenue (membership
+  ACTIVE) — a fronteira de autorização fina está na camada de app;
+- Reputação/evidence/marketplace: scoped por tenant + partes, coerente com produto.
 
 ## Fecho do módulo mercado (`448522d`)
 
