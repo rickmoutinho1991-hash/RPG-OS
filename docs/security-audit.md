@@ -54,7 +54,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `72b3d58` | 6 P2 (ver abaixo) |
 | `448522d` | **mercado** — 3 gaps: `api/mercado/pedido` sem `marketplace.requests.create`; auto-cota (dono cotava o próprio pedido); auto-aceitação (dono aceitava própria proposta → auto-contrato/pagamento) |
 | `1fd40d9` | **P0 webhooks + 6 P1 + 3 P2** em rotas API (ver "Varredura de rotas API") |
-| (← alinhamentos pós-varredura) | **2 P2** (categories, workflows) + **saude** alinhada às permissões declaradas (ver "Alinhamentos pós-varredura") |
+| `9477820` | **2 P2** (categories, workflows) + **saude** alinhada às permissões declaradas (ver "Alinhamentos pós-varredura") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
