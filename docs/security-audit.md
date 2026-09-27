@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 145 ficheiros / 1903 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 146 ficheiros / 1906 testes.
 
 ## Eixos de tenant
 
@@ -61,6 +61,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `9fbe445` | **P1 RLS** — leitura global de moradas fechada (addresses); teste de regressão de policies (ver "Revisão RLS") |
 | `256f022` | **Reativação `saude.manage`** — grant na baseline pessoal self-scoped; testes (ver "Reativação saude.manage") |
 | `908bd4c` | **Storage RLS espelhado** — guarda estática de buckets/policies storage (ver "Revisão RLS — storage") |
+| `(novo commit)` | **Guarda do caminho RBAC legacy** — grants colon mortos (ver "Caminho RBAC legacy — colon") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -149,7 +150,8 @@ baseline concede `saude.view`; `saude.manage` não existe em nenhum papel). Reno
 para o espaço declarado `saude.*`:
 - Vistas (`saude.view`, baseline para todos os autenticados) reativadas — todos os
   queries são self-scoped (`person_id = ator`), sem exposição cross-tenant;
-- Mutações (`saude.manage`) ficam **fail-closed** (403) até decisão de produto.
+- Mutações (`saude.manage`) ficam **fail-closed** (403) até decisão de produto
+  (desde então **reativado** — ver "Reativação saude.manage (decisão de produto)").
 Testes: 4 (connections GET/POST).
 
 **Aceites documentados (sem fix)**:
@@ -291,6 +293,32 @@ toda policy de storage.objects não-dropada é owner-only; `documents` privado e
 nunca reaberto; `project-photos` é o único bucket público permitido; as 4
 `documents_owner_*` (via execute) escopam a `auth.uid()`.
 
+## Caminho RBAC legacy — grants colon mortos (guarda)
+
+Existem dois modelos de permissões no repo:
+- **moderno (dot)**: `getSessionContext()` + `hasPermission(ctx.permissions,
+  "modulo.acao")` — usado por TODAS as rotas de RBAC fino;
+- **legacy (colon)**: `getCurrentUser()` resolve `SYSTEM_ROLES`
+  (`packages/core/src/constants/roles.ts`) cujas permissões têm namespace de
+  dois-pontos (`saft:export`, `company:manage`, `invoices:read`, …). Esses
+  literais NUNCA coincidem com os gates dot — são **dead grants** hoje. Os
+  únicos consumidores possíveis seriam `requirePermission`/`requireRole` de
+  `lib/auth/rbac.ts`, que **não têm nenhum caller no app** (confirmação via
+  grep: só as definições em `rbac.ts` e um helper ctx-no `session.ts`).
+
+O risco de regressão: se alguém ligar uma rota a `requirePermission("saft:export")`,
+um ACCOUNTANT passa (SYSTEM_ROLES concede-o) — grant real fora do modelo dot
+declarado, inconsistência de RBAC. **Guarda estática** (`legacyRbacGates.test.ts`,
+3 testes): (a) `@/lib/auth/rbac` só pode ser importado para `requireAuth`; (b)
+`requirePermission(`/`requireRole(` nunca são invocados no app (fora das
+definições); (c) nenhum gate (`hasPermission`/`guard`/`requirePermission`/
+`requireRole`) recebe literal dois-pontos.
+
+**Aceite documentado (sem fix)**: os grants colon em `SYSTEM_ROLES` são lixo de
+nomenclatura (fail-closed — nada os consome); mantidos por compatibilidade com
+o `getCurrentUser()` de PWA/smartwatch, que só usa `role`/`permissions` em
+contextos self (sync). Não é leak.
+
 ## Reativação saude.manage (decisão de produto)
 
 As mutações de saúde (`saude.manage` — criar/editar/eliminar ligações e
@@ -405,8 +433,9 @@ direto a tabelas de negócio.
 - **Auditoria da camada RLS** — já executada de forma estática (ver §"RLS que a BD
   deve espelhar"): 4/5 espelhados; `documents` é gap aceite. Rever se algum dia
   existir cliente `authenticated` direto a tabelas de negócio.
-- **`api/saude/*`** — permissões `health.*` não existem (módulo `saude`); rotas
-  falham fechado. Alinhar o nome das permissões quando o módulo tiver roadmap.
+- **`api/saude/*`** — alinhado: rotas usam `saude.view`/`saude.manage` (baseline
+  pessoal); reativado em "Reativação saude.manage". Os scopes `health.read.*`
+  são de consentimento (ao SNS), não permissões RBAC.
 - **`api/mobilidade/*`** — stubs mock sem validação de `connectionId`; fake providers
   falham fechado em produção. Substituir por integração real quando houver endpoint.
 - **`api/auth/callback/cmd`** — a rota não estabelece sessão real (não invoca
