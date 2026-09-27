@@ -14,6 +14,13 @@ function rateLimitedResponse(error: string, status: number, headers: Record<stri
   return NextResponse.json({ error }, { status, headers });
 }
 
+/** Remove campos sensíveis (credenciais/certificados) antes de devolver a ligação. */
+function redactConnection(connection: Record<string, unknown>) {
+  const copy = { ...connection };
+  delete copy.provider_config;
+  return copy;
+}
+
 function csrfErrorResponse(headers: Record<string, string>) {
   return NextResponse.json(
     { 
@@ -54,7 +61,7 @@ export async function GET(request: NextRequest) {
     return rateLimitedResponse("Erro ao buscar ligações", 500, headers);
   }
 
-  return NextResponse.json(data || [], { headers });
+  return NextResponse.json((data || []).map(redactConnection), { headers });
 }
 
 export async function POST(request: NextRequest) {
@@ -113,5 +120,5 @@ export async function POST(request: NextRequest) {
     return rateLimitedResponse("Erro ao criar ligação", 500, headers);
   }
 
-  return NextResponse.json(data, { status: 201, headers });
+  return NextResponse.json(redactConnection(data), { status: 201, headers });
 }

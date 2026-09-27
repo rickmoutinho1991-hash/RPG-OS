@@ -14,11 +14,17 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const email = searchParams.get("email") || "";
+  const email = searchParams.get("email")?.trim().toLowerCase() || "";
   const supabase = createAdminClient();
 
   // Non-admin users can only export their own data
-  if (user.role !== "ADMIN" && email && email !== user.email) {
+  // Normalização aplicada (trim/lowercase) ao MESMO critério da query — evita
+  // mismatch entre a autorização e o filtro de dados.
+  if (
+    user.role !== "ADMIN" &&
+    email &&
+    email !== user.email.trim().toLowerCase()
+  ) {
     return NextResponse.json(
       { error: "Não tem permissão para exportar dados de outros utilizadores." },
       { status: 403 },
@@ -26,7 +32,7 @@ export async function GET(request: Request) {
   }
 
   // If no email specified, export current user's data
-  const targetEmail = email || user.email;
+  const targetEmail = email || user.email.trim().toLowerCase();
 
   try {
     let query = supabase.from("users").select(`
@@ -43,7 +49,7 @@ export async function GET(request: Request) {
     `);
 
     if (targetEmail) {
-      query = query.eq("email", targetEmail.trim().toLowerCase());
+      query = query.eq("email", targetEmail);
     }
 
     const { data: userData, error } = await query;

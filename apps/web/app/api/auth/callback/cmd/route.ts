@@ -4,6 +4,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
+
+  // Hardening: defesa em profundidade na ROTA — o adapter já falha fechado em
+  // produção, mas esta rota nunca deve auto-provisionar utilizadores VERIFIED
+  // num ambiente real (a validação de callback AMA não está implementada).
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent("Autenticação Chave Móvel Digital indisponível.")}`,
+    );
+  }
+
   const token = searchParams.get("token") || searchParams.get("code");
   const tx = searchParams.get("tx");
 

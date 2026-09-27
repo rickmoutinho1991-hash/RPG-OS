@@ -19,10 +19,38 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { phoneNumber, amount, invoiceId, description } = body;
 
-    if (!phoneNumber || !amount || !invoiceId) {
+if (!phoneNumber || !amount || !invoiceId) {
       return NextResponse.json(
         { error: "Telemóvel MBWay, montante e fatura são obrigatórios." },
         { status: 400 },
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    // Hardening: validar que a fatura pertence ao ator (empresa OU cliente)
+    // antes de qualquer tentativa de pagamento — impede IDOR sobre faturas
+    // de outras organizações.
+    const { data: invoice, error: invoiceError } = await supabase
+      .from("invoices")
+      .select("id, company_id, client_id")
+      .eq("id", invoiceId)
+      .maybeSingle();
+
+    if (invoiceError || !invoice) {
+      return NextResponse.json(
+        { error: "Fatura não encontrada." },
+        { status: 404 },
+      );
+    }
+
+    const isOwned =
+      invoice.client_id === user.id ||
+      (Boolean(user.companyId) && invoice.company_id === user.companyId);
+    if (!isOwned) {
+      return NextResponse.json(
+        { error: "Fatura não pertence a esta conta." },
+        { status: 403 },
       );
     }
 
@@ -34,7 +62,6 @@ export async function POST(request: Request) {
       description: description || `Pagamento RPG-OS Fatura ${invoiceId}`,
     });
 
-    const supabase = createAdminClient();
     await supabase.from("audit_logs").insert({
       user_id: user.id,
       // Hardening: sem gateway real, o evento descreve tentativa indisponível,

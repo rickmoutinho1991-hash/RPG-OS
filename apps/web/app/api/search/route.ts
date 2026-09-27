@@ -17,20 +17,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ results: [] }, { status: 401 });
   }
 
-  // company_id (eixo fiscal/financeiro) resolve-se do PERFIL (getCurrentUser),
-  // nunca de organization_id (eixo RBAC) da sessão — UUIDs de tabelas
-  // distintas e semanticamente incomparáveis.
-  const me = await getCurrentUser();
-  const companyId = me?.companyId ?? null;
+  const supabase = createAdminClient();
+  const orgId = ctx.organization?.id;
+
+  // Eixo fiscal/financeiro resolve-se da ORGANIZAÇÃO ativa através da bridge
+  // company_organizations (vínculo formal, explícito e ACTIVE) — nunca de
+  // profiles.company_id (empresa legada fora do eixo RBAC, poderia fugir para
+  // a empresa errada quando as permissões vêm de outra organização).
+  let companyIds: string[] = [];
+  if (orgId) {
+    const { data: links } = await supabase
+      .from("company_organizations")
+      .select("company_id")
+      .eq("organization_id", orgId)
+      .eq("status", "ACTIVE");
+    companyIds = links?.map((l: { company_id: string }) => l.company_id) ?? [];
+  } else {
+    const me = await getCurrentUser();
+    if (me?.companyId) companyIds = [me.companyId];
+  }
 
   const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) {
     return NextResponse.json({ results: [] });
   }
 
-  const supabase = createAdminClient();
   const can = (perm: string) => hasPermission(ctx.permissions, perm);
-  const orgId = ctx.organization?.id;
   const like = `%${q}%`;
   const results: SearchResultItem[] = [];
 
@@ -76,12 +88,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (companyId && can("clientes.view")) {
+  if (companyIds.length > 0 && can("clientes.view")) {
     push(async () => {
       const { data } = await supabase
         .from("profiles")
         .select("id, name, tax_number")
-        .eq("company_id", companyId)
+        .in("company_id", companyIds)
         .ilike("name", like)
         .limit(5);
       for (const p of data ?? []) {
@@ -96,12 +108,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (companyId && can("orcamentos.view")) {
+  if (companyIds.length > 0 && can("orcamentos.view")) {
     push(async () => {
       const { data } = await supabase
         .from("quotes")
         .select("id, quote_number, title")
-        .eq("company_id", companyId)
+        .in("company_id", companyIds)
         .or(`quote_number.ilike.${like},title.ilike.${like}`)
         .limit(5);
       for (const qt of data ?? []) {
@@ -110,12 +122,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (companyId && can("faturacao.view")) {
+  if (companyIds.length > 0 && can("faturacao.view")) {
     push(async () => {
       const { data } = await supabase
         .from("invoices")
         .select("id, invoice_number, total")
-        .eq("company_id", companyId)
+        .in("company_id", companyIds)
         .ilike("invoice_number", like)
         .limit(5);
       for (const inv of data ?? []) {
@@ -130,12 +142,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (companyId && can("obras.view")) {
+  if (companyIds.length > 0 && can("obras.view")) {
     push(async () => {
       const { data } = await supabase
         .from("projects")
         .select("id, code, title")
-        .eq("company_id", companyId)
+        .in("company_id", companyIds)
         .or(`code.ilike.${like},title.ilike.${like}`)
         .limit(5);
       for (const pr of data ?? []) {
@@ -212,8 +224,8 @@ export async function GET(request: Request) {
         .ilike("name", like)
         .order("due_date", { ascending: false })
         .limit(5);
-      bq = companyId
-        ? bq.or(`company_id.eq.${companyId},user_id.eq.${ctx.user.id}`)
+      bq = companyIds.length > 0
+        ? bq.or(`company_id.in.(${companyIds.join(",")}),user_id.eq.${ctx.user.id}`)
         : bq.eq("user_id", ctx.user.id);
       const { data } = await bq;
       for (const b of data ?? []) {
@@ -236,8 +248,8 @@ export async function GET(request: Request) {
         .ilike("file_name", like)
         .order("uploaded_at", { ascending: false })
         .limit(5);
-      dq = companyId
-        ? dq.or(`company_id.eq.${companyId},owner_user_id.eq.${ctx.user.id}`)
+      dq = companyIds.length > 0
+        ? dq.or(`company_id.in.(${companyIds.join(",")}),owner_user_id.eq.${ctx.user.id}`)
         : dq.eq("owner_user_id", ctx.user.id);
       const { data } = await dq;
       for (const d of data ?? []) {

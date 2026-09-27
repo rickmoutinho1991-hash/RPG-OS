@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 132 ficheiros / 1855 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 139 ficheiros / 1878 testes.
 
 ## Eixos de tenant
 
@@ -52,6 +52,8 @@ permissões (`hasPermission` de `@rpg/core`).
 | `b994436` | assinatura: remover `createAdminClient` de componente cliente (service_role no browser) |
 | `4ba3d9e` | **P1** obras: 4 mutações escreviam em qualquer projeto por UUID sem sessão/ownership (`assertProjectAccess`); clientes: `getClientById` escopava projects/quotes |
 | `72b3d58` | 6 P2 (ver abaixo) |
+| `448522d` | **mercado** — 3 gaps: `api/mercado/pedido` sem `marketplace.requests.create`; auto-cota (dono cotava o próprio pedido); auto-aceitação (dono aceitava própria proposta → auto-contrato/pagamento) |
+| (← varredura de rotas API) | **P0 webhooks + 6 P1 + 3 P2** em rotas API (ver "Varredura de rotas API") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -75,6 +77,83 @@ permissões (`hasPermission` de `@rpg/core`).
    `999999990` em qualquer ambiente. Agora, em produção, não inicia login sem AMA
    configurado e recusa qualquer verificação (não há validação real implementada); o
    stub fica confinado a dev/demo.
+
+## Varredura de rotas API (√ todas as `app/api/**`)
+
+Varredura exaustiva das 56 rotas de `apps/web/app/api/` (3 subauditorias paralelas).
+Fechos aplicados nesta fase:
+
+**P0 — `api/webhooks/payments`**: o replay-protection (dedup in-memory keyed por event
+id, 24h) era marcado ANTES da verificação de assinatura. Portanto, um caller anónimo
+podia envenenar o cache com event ids arbitrários e causar DoS (409) em webhooks
+genuínos dos providers. Reordenado: a autenticidade é verificada primeiro
+(`paymentEngine.processWebhook`), e só depois se marca/migo o dedup. Testes: 4.
+
+**P1 — `api/rgpd/export`**: a autorização comparava o email em bruto mas a query
+filtrava normalizado (`trim().toLowerCase()`). Agora authz e query usam o mesmo valor
+normalizado; um pedido com outro email (mesmo com caixa diferente) → 403 sem tocar na
+BD. Testes: 3.
+
+**P1 — `api/administracao/governo/connections` (+ `[id]`)**: os GET/POST/PUT devolviam
+`provider_config` (credenciais/certificados) via `select("*")`. Sanitização
+`redactConnection()` (strip `provider_config`) em listagem, detalhe, criação e update.
+
+**P1 — `api/devices/push`**: qualquer autenticado despachava um broadcast para a
+fleet inteira sem permissão. Agora exige `comunicacao.manage` (getSessionContext)
+antes de criar payload/registar auditoria. Testes: 3.
+
+**P1 — `api/sibs/mbway`**: `invoiceId` nunca era validado (IDOR sobre faturas de
+outras organizações). Agora valida ownership (`client_id` do ator OU `company_id` da
+sua empresa) → 404/403 antes de qualquer tentativa no gateway. Testes: 3.
+
+**P1 — `api/search`**: o eixo fiscal/empresa vinha de `profiles.company_id` (empresa
+legada) enquanto as permissões vêm da org ativa — um utilizador com permissões na org
+A via dados da empresa B. A empresa passa a resolver-se da **org ativa via bridge
+`company_organizations` (status ACTIVE)**, com fallback self (`profiles.company_id`)
+apenas na ausência de org. Queries de perfis/orçamentos/faturas/obras/financeiro/docs
+passam a `.in(company_ids)`.
+
+**P1 — `api/auth/callback/cmd`**: a rota auto-provisionava um utilizador VERIFIED a
+partir de `token`+`tx`. O adapter já falha fechado em produção; agora a ROTA também
+(guard explícito `NODE_ENV === production` → redirect de erro), defesa em profundidade.
+
+**P2 — `api/session-context`**: devolvia `200` com `ctx: null` para anónimos +
+podia ser cacheado. Agora `401`, com `export const dynamic = "force-dynamic"`. Testes: 2.
+
+**P2 — `api/rgpd/delete`**: `Promise.all` descartava erros das 4 operações de
+anonimização → "erasure parcial" era reportada como sucesso (violação RGPD Art. 17).
+Erros agora coletados; qualquer falha → 500. Testes: 2.
+
+**Aceites documentados (sem fix)**:
+- **`api/saude/*`**: permissões `health.view`/`health.manage` NÃO existem (módulo
+  registado como `saude`, baseline `saude.view`). Todas as rotas dão 403 a quem não
+  tenha `*` — falha fechada, módulo morto. Corrigir o nome das permissões é decisão de
+  produto (reativa o módulo); registar quando houver roadmap.
+- **`api/mobilidade/*`**: stubs com dados mock hardcoded; `connectionId` nunca validado
+  contra a BD. Em produção os fake providers falham fechado (`ALLOW_FAKE_PROVIDERS`).
+- **`api/categories`**: usa `createAdminClient` para catálogo global já protegido por
+  RLS de leitura pública (escalada desnecessária, sem impacto real).
+- **Arquitectura**: existem 2 caminhos de auth nas rotas — `requireAuth()`
+  (`lib/supabase/auth.ts`, single-company legacy) e `getSessionContext()`
+  (`lib/session.ts`, org + permissões). Nenhuma rota administrativa deve usar o
+  primeiro para decisões de RBAC; `role === "ADMIN"` de `user_roles` é grant
+  system-wide (não tenant-scoped) — mantido para capacidade de platform admin.
+
+## Fecho do módulo mercado (`448522d`)
+
+1. **`api/mercado/pedido` POST** não verificava `marketplace.requests.create` (a
+   action `createRequestAction` verificava) — qualquer autenticado criava pedidos.
+   Agora 403 sem tocar na BD.
+2. **Auto-cota**: o dono do pedido podia cotar o próprio pedido (`submitQuoteAction`
+   + rota `/api/mercado/quote`). Recusado quando `request.client_id === ator`.
+3. **Auto-aceitação**: o dono podia aceitar a própria proposta → auto-contrato,
+   auto-milestones, auto-pagamentos e garantias (fraude de integridade). Recusado
+   quando `quote.provider_id === ator`.
+
+Resto do módulo verificado OK: ownership em milestones (provider)/aprovação (client),
+`getContractAction` client OU provider, lista de contratos `or(client_id, provider_id)`,
+evidências com dupla verificação (README do core deny-closed + rota), feed com
+`marketplace.*` e status PUBLISHED/APPROVED.
 
 ## Módulos varridos e estado final (fail-closed)
 
@@ -161,6 +240,12 @@ direto a tabelas de negócio.
 - **Auditoria da camada RLS** — já executada de forma estática (ver §"RLS que a BD
   deve espelhar"): 4/5 espelhados; `documents` é gap aceite. Rever se algum dia
   existir cliente `authenticated` direto a tabelas de negócio.
+- **`api/saude/*`** — permissões `health.*` não existem (módulo `saude`); rotas
+  falham fechado. Alinhar o nome das permissões quando o módulo tiver roadmap.
+- **`api/mobilidade/*`** — stubs mock sem validação de `connectionId`; fake providers
+  falham fechado em produção. Substituir por integração real quando houver endpoint.
+- **`api/auth/callback/cmd`** — a rota não estabelece sessão real (não invoca
+  `supabase.auth`); o guard de produção parte-o em prod. Manter como demo/dev.
 - `PortugueseAuthAdapter`: em dev/demo o stub continua a autenticar — por design,
   fechar se um ambiente pré-prod ficar ligado a prod.
 - Ruído de console pré-existente nos testes de faturação (projeção fiscal lê
@@ -176,4 +261,7 @@ Testes de regressão relevantes:
 `apps/web/app/obras/actions.test.ts`, `apps/web/app/documentos/actions.test.ts`,
 `apps/web/app/comunicacao/actions.test.ts`, `apps/web/app/faturacao/creationActions.test.ts`,
 `apps/web/app/mercado/pedidos/[id]/requestQuotes.test.ts`,
-`apps/web/app/login/portugueseAuthAdapter.test.ts`.
+`apps/web/app/login/portugueseAuthAdapter.test.ts`,
+`apps/web/app/api/webhooks/payments/route.test.ts`, `apps/web/app/api/sibs/mbway/route.test.ts`,
+`apps/web/app/api/rgpd/export/route.test.ts`, `apps/web/app/api/rgpd/delete/route.test.ts`,
+`apps/web/app/api/devices/push/route.test.ts`, `apps/web/app/api/session-context/route.test.ts`.

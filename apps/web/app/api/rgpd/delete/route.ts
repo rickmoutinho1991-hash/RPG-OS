@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     // Anonimizar perfis e contactos preservando documentos fiscais obrigatórios por lei (Art. 17.º, n.º 3, alínea b) do RGPD)
     const anonymizedName = `Utilizador Anonimizado #${user.id.slice(0, 8)}`;
 
-    await Promise.all([
+const results = await Promise.all([
       supabase
         .from("profiles")
         .update({
@@ -82,6 +82,21 @@ export async function POST(request: Request) {
         },
       }),
     ]);
+
+    // Hardening: falhas parciais NÃO podem reportar sucesso — o titular tem de
+    // saber que a erasure não ficou completa (RGPD Art. 17: oponível a silêncio).
+    const failed = results.filter((r) => r.error);
+    if (failed.length > 0) {
+      console.error(
+        `[RGPD] Erasure parcial para ${user.id}: ${failed.length} operações falharam`,
+      );
+      return NextResponse.json(
+        {
+          error: "Eliminação parcial: nem todos os dados foram processados.",
+        },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       success: true,

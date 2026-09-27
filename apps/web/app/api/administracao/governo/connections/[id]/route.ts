@@ -3,6 +3,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/session";
 import { hasPermission } from "@rpg/core";
 
+/** Remove campos sensíveis (credenciais/certificados) antes de devolver a ligação. */
+function redactConnection(connection: Record<string, unknown>) {
+  const copy = { ...connection };
+  delete copy.provider_config;
+  return copy;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -31,7 +38,7 @@ export async function GET(
     return NextResponse.json({ error: "Ligação não encontrada" }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(redactConnection(data));
 }
 
 export async function PUT(
@@ -71,7 +78,7 @@ export async function PUT(
     return NextResponse.json({ error: "Ligação não encontrada" }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(redactConnection(data));
 }
 
 export async function DELETE(

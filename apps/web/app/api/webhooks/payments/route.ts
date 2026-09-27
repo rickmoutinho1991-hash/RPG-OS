@@ -83,23 +83,13 @@ export async function POST(request: NextRequest) {
 
     const payload = await request.json();
 
-    // 4. Replay Protection - check for duplicate webhook events
-    const replayResult = checkWebhookReplay(request, providerHeader, payload);
-    if (!replayResult.allowed) {
-      return NextResponse.json(
-        { 
-          error: 'Duplicate webhook event',
-          message: replayResult.reason || 'Event already processed',
-          eventId: replayResult.eventId,
-        },
-        { status: 409, headers: rateLimitHeaders }
-      );
-    }
-
-    // 5. Extrair signature se disponível
+    // 4. Extrair signature se disponível
     const signature = headers['x-signature'] || headers['stripe-signature'] || headers['adyen-signature'];
 
-    // 6. Processar webhook via Payment Engine
+    // 5. VERIFICAR AUTENTICIDADE ANTES do replay protection.
+    // Hardening: o dedup cache só pode ser marcado com eventos cuja assinatura
+    // foi validada — caso contrário, qualquer caller anónimo envenena o cache
+    // (keyed por event id) e bloqueia webhooks genuínos do provider (DoS 409).
     const result = await paymentEngine.processWebhook({
       provider: providerHeader,
       payload,
@@ -111,6 +101,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: result.error },
         { status: 400, headers: rateLimitHeaders }
+      );
+    }
+
+    // 6. Replay Protection - check for duplicate webhook events (após validação)
+    const replayResult = checkWebhookReplay(request, providerHeader, payload);
+    if (!replayResult.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Duplicate webhook event',
+          message: replayResult.reason || 'Event already processed',
+          eventId: replayResult.eventId,
+        },
+        { status: 409, headers: rateLimitHeaders }
       );
     }
 
