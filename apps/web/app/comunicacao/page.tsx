@@ -141,8 +141,10 @@ export default async function CommsPage({
       ((membershipsData ?? []) as { channel_id: string; last_read_at: string | null }[])
         .map((m) => [m.channel_id, m.last_read_at]),
     );
-    // DMs pessoais: só os em que participo
+    // Espaço pessoal: só canais em que participo — nunca listar os
+    // canais pessoais de terceiros (ison "organization_id", null é global).
     if (isPersonal) {
+      personalTeamChannels = personalTeamChannels.filter((c) => myMemberships.has(c.id));
       dmChannels = dmChannels.filter((c) => myMemberships.has(c.id));
     }
   }
