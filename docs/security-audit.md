@@ -68,7 +68,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `88ed34f` | **EXECUTE grants** — nenhuma função SECURITY DEFINER com EXECUTE líquido para `anon`/`public` (ver "EXECUTE grants em funções") |
 | `ed0faa6` | **Realtime publication** — só tabelas allowlist na publication `supabase_realtime` (ver "Realtime publication") |
 | `cc37c56` | **Migration naming/order** — convenção `YYYYMMDDHHMMSS` + ordem cronológica (ver "Migration naming/order") |
-| `(novo commit)` | **Error disclosure** — nenhuma rotade API retorna `error.message` ao cliente (ver "Error disclosure") |
+| `338cbe6` | **Error disclosure** — nenhuma rota de API retorna `error.message` ao cliente (ver "Error disclosure") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
