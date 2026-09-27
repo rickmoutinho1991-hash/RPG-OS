@@ -64,6 +64,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `919d2a0` | **Guarda do caminho RBAC legacy** — grants colon mortos (ver "Caminho RBAC legacy — colon") |
 | `1e1d3b5` | **Fronteira web** — `X-Powered-By` desligado + espelho real dos headers/`public`/dev-only (ver "Fronteira web — headers e guardas dev-only") |
 | `822e273` | **Cobertura RLS por tabela** — nenhuma tabela nova nasce sem RLS (ver "Cobertura RLS por tabela") |
+| `(novo commit)` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -529,3 +530,27 @@ Testes de regressão relevantes:
 `apps/web/app/api/webhooks/payments/route.test.ts`, `apps/web/app/api/sibs/mbway/route.test.ts`,
 `apps/web/app/api/rgpd/export/route.test.ts`, `apps/web/app/api/rgpd/delete/route.test.ts`,
 `apps/web/app/api/devices/push/route.test.ts`, `apps/web/app/api/session-context/route.test.ts`.
+
+## CI
+
+O repo não tinha CI (`.github/workflows` vazio) — as 8 fases de guardas
+só eram executáveis localmente. Nenhum regressor podia ser barrado antes
+de chegar à base. Criado `.github/workflows/ci.yml`:
+
+| Detalhe | Valor |
+|---|---|
+| Trigger | push para `main`, `pull_request`, `workflow_dispatch` |
+| Execução | `concurrency` group por ref, `cancel-in-progress` |
+| Permissões | `contents: read` (menor privilégio para checkout) |
+| Node | 20.20.2 (ler `.nvmrc`) |
+| pnpm | 8.15.9 via `pnpm/action-setup@v4` + `corepack` |
+| Cache | `~/.pnpm-store`, chaveada por hash do `pnpm-lock.yaml` |
+| Gates | `pnpm typecheck && pnpm lint && pnpm test && pnpm build` |
+
+Decisões documentadas:
+- `run_install: false` no action-setup + `pnpm install --frozen-lockfile`
+  separado — trava a versão do lockfile (regressão de dependências).
+- Jobs `fail-fast: false` — todos os gates correm independentemente.
+- Nenhum passo de deploy ou `supabase` CLI — o CI verifica o que é
+  verificável estaticamente; migrações e o seed admin permanecem ação
+  externa (review de PR + rotação de credenciais em produção).
