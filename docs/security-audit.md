@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 144 ficheiros / 1898 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 145 ficheiros / 1903 testes.
 
 ## Eixos de tenant
 
@@ -60,6 +60,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `ece42a7` | **P0 segredos** — password admin removida da seed migration; teste de regressão de segredos (ver "Varredura de segredos/env") |
 | `9fbe445` | **P1 RLS** — leitura global de moradas fechada (addresses); teste de regressão de policies (ver "Revisão RLS") |
 | `256f022` | **Reativação `saude.manage`** — grant na baseline pessoal self-scoped; testes (ver "Reativação saude.manage") |
+| `(novo commit)` | **Storage RLS espelhado** — guarda estática de buckets/policies storage (ver "Revisão RLS — storage") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -266,6 +267,29 @@ revogada.
 - Leituras de org/company em financeiro/marketing/government/revenue (membership
   ACTIVE) — a fronteira de autorização fina está na camada de app;
 - Reputação/evidence/marketplace: scoped por tenant + partes, coerente com produto.
+
+## Revisão RLS — storage (buckets e storage.objects)
+
+Espelho da varredura RLS no schema `storage`: o endurecimento vivia só em
+migrações (M-G/I `documents` privado; M-G/P owner-only nos buckets sem policy)
+sem guarda estática — agora fechado (`storagePolicies.test.ts`, 5 testes).
+
+**Estado líquido (todas as migrações)**:
+- `documents` **privado** (`public = false`, flipped na M-G/I) — dados fiscais/
+  certidões/dados de saúde; o app lê/escreve apenas via admin server-side,
+  **zero `getPublicUrl`** no repo;
+- `project-photos` **único bucket público por desenho** (fotos de obras/imóveis
+  para o marketplace); `marketplace-evidence` e `reputation-attachments`
+  também privados;
+- Políticas "Public Access for Documents/Photos" (bucket público + SELECT sem
+  owner) **dropadas** — nenhuma sobrevive em efeito líquido;
+- 16 políticas owner-only (`*_owner_select/insert/update/delete` por bucket)
+  escopam `owner_id = auth.uid()::text`.
+
+**Invariantes testadas**: nenhum "Public Access for *" survive (net-effect);
+toda policy de storage.objects não-dropada é owner-only; `documents` privado e
+nunca reaberto; `project-photos` é o único bucket público permitido; as 4
+`documents_owner_*` (via execute) escopam a `auth.uid()`.
 
 ## Reativação saude.manage (decisão de produto)
 
