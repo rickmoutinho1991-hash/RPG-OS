@@ -67,7 +67,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `4e5eb3f` | **SECURITY DEFINER** — guarda de `search_path` com `pg_temp` (ver "SECURITY DEFINER — search_path") |
 | `88ed34f` | **EXECUTE grants** — nenhuma função SECURITY DEFINER com EXECUTE líquido para `anon`/`public` (ver "EXECUTE grants em funções") |
 | `ed0faa6` | **Realtime publication** — só tabelas allowlist na publication `supabase_realtime` (ver "Realtime publication") |
-| `(novo commit)` | **Migration naming/order** — convenção `YYYYMMDDHHMMSS` + ordem cronológica (ver "Migration naming/order") |
+| `cc37c56` | **Migration naming/order** — convenção `YYYYMMDDHHMMSS` + ordem cronológica (ver "Migration naming/order") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
