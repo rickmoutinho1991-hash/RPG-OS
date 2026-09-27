@@ -1,91 +1,82 @@
-import { describe, it, expect } from 'vitest';
+/**
+ * RPG-OS — Espelho real dos security headers (fronteira web).
+ *
+ * Versão anterior deste ficheiro testava uma cópia hardcoded dos headers
+ * (duplicava o CSP literal dentro do próprio teste) — passava mesmo que os
+ * headers fossem apagados do middleware.ts. Esta versão lê o source real do
+ * middleware e verifica os invariantes diretamente:
+ *   (a) os 5 security headers obrigatórios são efetivamente setados;
+ *   (b) as directives críticas do CSP estão presentes no source;
+ *   (c) as ligações externas necessárias (Supabase/Stripe/AT) continuam
+ *       permitidas no `connect-src`.
+ * Leitura local apenas — sem rede, sem fakes.
+ */
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-// We test the middleware by checking what headers would be set
-// Since middleware is a Next.js server-side feature, we test the header values directly
+const middlewareSource = readFileSync(
+  path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "middleware.ts",
+  ),
+  "utf8",
+);
 
-describe('Security Headers Middleware', () => {
-  const expectedHeaders = {
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-    'Content-Security-Policy': expect.any(String),
-  };
+const REQUIRED_HEADERS: Array<[string, string]> = [
+  ["X-Content-Type-Options", "nosniff"],
+  ["X-Frame-Options", "DENY"],
+  ["Referrer-Policy", "strict-origin-when-cross-origin"],
+  ["Permissions-Policy", "camera=(), microphone=(), geolocation=()"],
+  ["Content-Security-Policy", "csp"],
+];
 
-  it('has all required security headers defined', () => {
-    // This validates the middleware implementation has the right headers
-    const requiredHeaders = [
-      'X-Content-Type-Options',
-      'X-Frame-Options', 
-      'Referrer-Policy',
-      'Permissions-Policy',
-      'Content-Security-Policy',
-    ];
+const CSP_CRITICAL_DIRECTIVES = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+];
 
-    requiredHeaders.forEach(header => {
-      expect(expectedHeaders).toHaveProperty(header);
-    });
+describe("Fronteira web — middleware.ts (espelho real)", () => {
+  it("seta os 5 security headers obrigatórios no source do middleware", () => {
+    for (const [header, value] of REQUIRED_HEADERS) {
+      const setCall = `response.headers.set('${header}', '${value}'`;
+      const setVarCall = `response.headers.set('${header}', csp)`;
+      const headerSet =
+        middlewareSource.includes(setCall) ||
+        middlewareSource.includes(setVarCall);
+      expect(headerSet, `header ${header} deve ser setado no middleware.ts`)
+        .toBe(true);
+    }
   });
 
-  it('CSP includes required directives', () => {
-    // The CSP should contain these critical directives
-    const cspDirectives = [
-      "default-src 'self'",
-      "script-src",
-      "style-src",
-      "img-src",
-      "font-src",
-      "connect-src",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-      "base-uri 'self'",
-      "object-src 'none'",
-    ];
-
-    // This validates the CSP string construction
-    const csp = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https: blob:",
-      "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.portaldasfinancas.gov.pt",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-      "base-uri 'self'",
-      "object-src 'none'",
-    ].join('; ');
-
-    cspDirectives.forEach(directive => {
-      expect(csp).toContain(directive);
-    });
+  it("CSP contém as directives críticas (anti-clickjacking/plugin/base)", () => {
+    for (const directive of CSP_CRITICAL_DIRECTIVES) {
+      expect(
+        middlewareSource.includes(`"${directive}"`) ||
+          middlewareSource.includes(`'${directive}'`),
+        `directive ${directive} deve constar na CSP do middleware.ts`,
+      ).toBe(true);
+    }
   });
 
-  it('CSP allows required external connections', () => {
-    const csp = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https: blob:",
-      "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.portaldasfinancas.gov.pt",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-      "base-uri 'self'",
-      "object-src 'none'",
-    ].join('; ');
-
-    // Must allow Supabase
-    expect(csp).toContain('https://*.supabase.co');
-    expect(csp).toContain('wss://*.supabase.co');
-    
-    // Must allow Stripe
-    expect(csp).toContain('https://api.stripe.com');
-    
-    // Must allow AT
-    expect(csp).toContain('https://api.portaldasfinancas.gov.pt');
-    
-    // Must have frame-ancestors none
-    expect(csp).toContain("frame-ancestors 'none'");
+  it("CSP permite as ligações externas necessárias (Supabase/Stripe/AT)", () => {
+    const requiredConnects = [
+      "https://*.supabase.co",
+      "wss://*.supabase.co",
+      "https://api.stripe.com",
+      "https://api.portaldasfinancas.gov.pt",
+    ];
+    for (const conn of requiredConnects) {
+      expect(
+        middlewareSource.includes(conn),
+        `connect-src deve permitir ${conn}`,
+      ).toBe(true);
+    }
   });
 });

@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 146 ficheiros / 1906 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 147 ficheiros / 1910 testes.
 
 ## Eixos de tenant
 
@@ -62,6 +62,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `256f022` | **Reativação `saude.manage`** — grant na baseline pessoal self-scoped; testes (ver "Reativação saude.manage") |
 | `908bd4c` | **Storage RLS espelhado** — guarda estática de buckets/policies storage (ver "Revisão RLS — storage") |
 | `919d2a0` | **Guarda do caminho RBAC legacy** — grants colon mortos (ver "Caminho RBAC legacy — colon") |
+| `(novo commit)` | **Fronteira web** — `X-Powered-By` desligado + espelho real dos headers/`public`/dev-only (ver "Fronteira web — headers e guardas dev-only") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -318,6 +319,36 @@ definições); (c) nenhum gate (`hasPermission`/`guard`/`requirePermission`/
 nomenclatura (fail-closed — nada os consome); mantidos por compatibilidade com
 o `getCurrentUser()` de PWA/smartwatch, que só usa `role`/`permissions` em
 contextos self (sync). Não é leak.
+
+## Fronteira web — headers e guardas dev-only
+
+**Fix — `X-Powered-By` desligado**: o repo não tinha `next.config.ts`, logo o
+Next.js servia `X-Powered-By: Next.js 16.3.6` (fingerprint de versão/framework em
+todas as respostas). Criado `apps/web/next.config.ts` com `poweredByHeader: false`.
+
+**Bug encontrado no espelho existente**: `apps/web/middleware.test.ts` era uma
+**tautologia** — testava uma cópia *hardcoded* dos headers definida dentro do
+próprio teste (o CSP estava duplicado literal nas linhas 46–57 do ficheiro), sem
+ler `middleware.ts`. Passaria 100% verde mesmo que alguém apagasse todos os
+headers de segurança do middleware. **Reescrito** para ler o source real e
+verificar os 3 invariantes que o teste original *pretendia* cobrir: os 5 headers
+(`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
+`Permissions-Policy`, `Content-Security-Policy`), as directives críticas do CSP
+(`frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`,
+`form-action 'self'`, `default-src 'self'`) e as ligações externas necessárias
+(Supabase/Stripe/AT).
+
+**Nova guarda — `webFrontier.test.ts`** (4 testes, leitura local):
+- `next.config.ts` mantém `poweredByHeader: false`;
+- `apps/web/public/` só contém ativos estáticos numa **allowlist** (ícones PWA,
+  `manifest.json`, `sw.js` e o `sw-version.json` gerado no build e gitignored) —
+  apanha qualquer `.env`, config ou dump de dados dropped aí;
+- `.env.example` nunca habilita dev-only: `ALLOW_FAKE_PROVIDERS=false` é
+  obrigatório e `ALLOW_DEMO_ACCESS` tem de ficar comentado;
+- `api/auth/callback/cmd` (auto-provision da Chave Móvel Digital) mantém a
+  guarda `NODE_ENV === "production"` **antes** de qualquer `createAdminClient()`
+  ou `.insert(` no source — impede alguém mover a guarda para depois do
+  provisionamento.
 
 ## Reativação saude.manage (decisão de produto)
 
