@@ -85,13 +85,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(syncResponse);
   } catch (err: unknown) {
+    console.error("[api/devices/sync] Erro na sincronização:", err instanceof Error ? err.message : err);
     return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Erro na sincronização de dispositivo.",
-      },
+      { error: "Erro na sincronização de dispositivo." },
       { status: 500 },
     );
   }

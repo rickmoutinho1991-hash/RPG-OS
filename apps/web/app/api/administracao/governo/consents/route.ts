@@ -97,7 +97,8 @@ export async function POST(
 
     return NextResponse.json(data, { status: 201, headers });
   } catch (err) {
-    return rateLimitedResponse(err instanceof Error ? err.message : "Erro desconhecido", 500, headers);
+    console.error("[api/governo/consents] Erro ao criar consentimento:", err instanceof Error ? err.message : err);
+    return rateLimitedResponse("Erro ao criar consentimento.", 500, headers);
   }
 }
 
@@ -137,6 +138,7 @@ export async function GET(
 
     return NextResponse.json(data || [], { headers });
   } catch (err) {
-    return rateLimitedResponse(err instanceof Error ? err.message : "Erro desconhecido", 500, headers);
+    console.error("[api/governo/consents] Erro ao buscar consentimentos:", err instanceof Error ? err.message : err);
+    return rateLimitedResponse("Erro ao buscar consentimentos.", 500, headers);
   }
 }

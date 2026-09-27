@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 152 ficheiros / 1926 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 153 ficheiros / 1928 testes.
 
 ## Eixos de tenant
 
@@ -68,6 +68,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `88ed34f` | **EXECUTE grants** — nenhuma função SECURITY DEFINER com EXECUTE líquido para `anon`/`public` (ver "EXECUTE grants em funções") |
 | `ed0faa6` | **Realtime publication** — só tabelas allowlist na publication `supabase_realtime` (ver "Realtime publication") |
 | `cc37c56` | **Migration naming/order** — convenção `YYYYMMDDHHMMSS` + ordem cronológica (ver "Migration naming/order") |
+| `(novo commit)` | **Error disclosure** — nenhuma rotade API retorna `error.message` ao cliente (ver "Error disclosure") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
@@ -490,6 +491,37 @@ deploy e pode causar conflitos silenciosos de ordem.
 - toda migration segue `YYYYMMDDHHMMSS_nome.sql` (allowlist para as 2 legadas);
 - as migrations estão em ordem cronológica crescente pelo prefixo;
 - não há timestamps duplicados (allowlist para o conhecido).
+
+## Error disclosure
+
+Retornar `error.message` diretamente ao cliente em respostas de API
+pode vazar detalhes internos: erros SQL (tabelas, colunas), stack
+traces, caminhos de ficheiro, versões de bibliotecas. Um atacante
+usa estes detalhes para mapear o schema e direcionar exploits.
+
+A prática segura: retornar mensagem genérica ao cliente
+("Erro ao processar pedido") e fazer log do erro completo
+server-side (`console.error` / audit log).
+
+**Achados reais corrigidos** (o teste apanhou 6 violações):
+- `api/categories/route.ts` — `error.message` na resposta 500;
+- `api/devices/sync/route.ts` — `err.message` na resposta 500;
+- `api/administracao/governo/consents/route.ts` (2 ocorrências) —
+  `err.message` via `rateLimitedResponse`;
+- `api/administracao/governo/consents/[id]/route.ts` — `err.message`
+  na resposta 500;
+- `api/memories/route.ts` — helper `failMessage` retornava
+  `error.message` ao cliente.
+
+Todas corrigidas: mensagem genérica ao cliente + `console.error`
+server-side com o erro completo.
+
+**Guarda estática nova** (`errorDisclosure.test.ts`, 2 testes, parse
+das 54 rotas de API):
+- nenhuma rota retorna `error.message` / `err.message` /
+  `error.stack` diretamente na resposta JSON;
+- nenhuma rota retorna `NextResponse.json({ error: error.message })`
+  ou padrão similar.
 
 ## Reativação saude.manage (decisão de produto)
 

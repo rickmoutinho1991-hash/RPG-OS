@@ -50,6 +50,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Erro desconhecido" }, { status: 500 });
+    console.error("[api/governo/consents/[id]] Erro ao revogar consentimento:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "Erro ao revogar consentimento." }, { status: 500 });
   }
 }

@@ -18,7 +18,8 @@ function service(): MemoryService {
 }
 
 function failMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
+  console.error("[api/memories] Erro:", error instanceof Error ? error.message : error);
+  return fallback;
 }
 
 /** UUID determinístico (v5-like) a partir de ator+key, para audit_logs.entity_id (coluna UUID). */

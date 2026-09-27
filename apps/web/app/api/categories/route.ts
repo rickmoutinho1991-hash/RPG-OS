@@ -11,7 +11,8 @@ export async function GET() {
     .order("name");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[api/categories] Erro ao ler categorias:", error.message);
+    return NextResponse.json({ error: "Erro ao carregar categorias." }, { status: 500 });
   }
 
   return NextResponse.json(data || []);
