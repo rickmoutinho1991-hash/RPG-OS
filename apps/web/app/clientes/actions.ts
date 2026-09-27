@@ -148,18 +148,28 @@ export async function getClientById(userId: string): Promise<any | null> {
       return null;
     }
 
+    // Sub-recursos do cliente SEMPRE escopados à empresa do ator (ou ao
+    // próprio, sem empresa). Sem isto, se o mesmo utilizador for cliente de
+    // duas empresas, uma mostrava as obras/cotações da outra (cross-tenant).
+    let projectsQuery = supabase
+      .from("projects")
+      .select("*")
+      .eq("client_id", userId)
+      .order("created_at", { ascending: false });
+    let quotesQuery = supabase
+      .from("quotes")
+      .select("*")
+      .eq("client_id", userId)
+      .order("created_at", { ascending: false });
+    if (user.companyId) {
+      projectsQuery = projectsQuery.eq("company_id", user.companyId);
+      quotesQuery = quotesQuery.eq("company_id", user.companyId);
+    }
+
     const [profileRes, projectsRes, quotesRes, auditLogsRes] = await Promise.all([
       profileQuery.maybeSingle(),
-      supabase
-        .from("projects")
-        .select("*")
-        .eq("client_id", userId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("quotes")
-        .select("*")
-        .eq("client_id", userId)
-        .order("created_at", { ascending: false }),
+      projectsQuery,
+      quotesQuery,
       supabase
         .from("audit_logs")
         .select("*")

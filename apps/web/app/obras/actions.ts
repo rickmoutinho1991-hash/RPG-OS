@@ -4,6 +4,29 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { revalidatePath } from "next/cache";
 
+/**
+ * ACL de projeto (mesma regra de leitura de getProjectsList): utilizador com
+ * empresa só acede a projetos da SUA empresa; sem empresa só aos seus como
+ * cliente. Todas as mutações por projectId passam por aqui — nunca confiam
+ * no UUID vindo do browser.
+ */
+async function assertProjectAccess(
+  projectId: string,
+  user: { id: string; companyId?: string | null },
+): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("company_id, client_id")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (!project) return false;
+  if (user.companyId) {
+    return String(project.company_id) === String(user.companyId);
+  }
+  return String(project.client_id) === user.id;
+}
+
 export async function getProjectsList(params?: {
   search?: string;
   status?: string;
@@ -340,6 +363,14 @@ export async function addTaskAction(
   projectId: string,
   formData: FormData,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { success: false, error: "Sessão não iniciada." };
+  }
+  if (!(await assertProjectAccess(projectId, user))) {
+    return { success: false, error: "Sem acesso a este projeto." };
+  }
+
   const supabase = createAdminClient();
 
   const title = String(formData.get("title") ?? "").trim();
@@ -377,7 +408,15 @@ export async function updateProjectProgressAction(
   projectId: string,
   progress: number,
   status?: string,
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { success: false, error: "Sessão não iniciada." };
+  }
+  if (!(await assertProjectAccess(projectId, user))) {
+    return { success: false, error: "Sem acesso a este projeto." };
+  }
+
   const supabase = createAdminClient();
 
   const updateData: Record<string, unknown> = {
@@ -398,6 +437,14 @@ export async function addProjectPhotoAction(
   projectId: string,
   formData: FormData,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { success: false, error: "Sessão não iniciada." };
+  }
+  if (!(await assertProjectAccess(projectId, user))) {
+    return { success: false, error: "Sem acesso a este projeto." };
+  }
+
   const supabase = createAdminClient();
 
   const caption = String(formData.get("caption") ?? "").trim();
@@ -445,6 +492,14 @@ export async function addProjectMaterialAction(
   projectId: string,
   formData: FormData,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { success: false, error: "Sessão não iniciada." };
+  }
+  if (!(await assertProjectAccess(projectId, user))) {
+    return { success: false, error: "Sem acesso a este projeto." };
+  }
+
   const supabase = createAdminClient();
 
   const name = String(formData.get("name") ?? "").trim();
