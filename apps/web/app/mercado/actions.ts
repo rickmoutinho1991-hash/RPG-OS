@@ -386,6 +386,10 @@ export async function submitQuoteAction(formData: FormData) {
     return { error: "Só é possível cotar pedidos publicados" };
   }
 
+  if (request.client_id === ctx.user.id) {
+    return { error: "Não podes cotar o teu próprio pedido" };
+  }
+
   try {
     const requestFlow = new ServicesRequestFlow();
     const marketplaceFlow = new MarketplaceFlow();
@@ -553,6 +557,10 @@ export async function acceptQuoteAction(formData: FormData) {
 
   if (quote.status !== "SENT" && quote.status !== "VIEWED") {
     return { error: "Proposta não está em estado elegível para aceitação" };
+  }
+
+  if (quote.provider_id === ctx.user.id) {
+    return { error: "Não podes aceitar a tua própria proposta" };
   }
 
   try {

@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/session";
-import { ServicesRequestFlow } from "@rpg/core";
+import { ServicesRequestFlow, hasPermission } from "@rpg/core";
 
 export async function POST(req: NextRequest) {
   const ctx = await getSessionContext();
   if (!ctx) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
+
+  if (!hasPermission(ctx.permissions, "marketplace.requests.create")) {
+    return NextResponse.json(
+      { error: "Sem permissão para criar pedidos no mercado" },
+      { status: 403 },
+    );
   }
 
   const formData = await req.formData();

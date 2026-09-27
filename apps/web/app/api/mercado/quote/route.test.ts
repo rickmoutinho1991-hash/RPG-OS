@@ -148,4 +148,41 @@ describe("POST /api/mercado/quote", () => {
     expect(mockSupabase.from).toHaveBeenCalledWith("service_requests");
     expect(mockSupabase.from).toHaveBeenCalledWith("service_quotes");
   });
+
+  it("dono do pedido tenta cotar o próprio pedido -> 400 sem escrever", async () => {
+    (vi.mocked(getSessionContext) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      authCtx(["marketplace.quotes.create"]),
+    );
+
+    const ownRequest = { ...publishedRequest, client_id: "user-1" };
+    mockSupabase.from.mockImplementation((table: string) => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        single: vi.fn(() =>
+          Promise.resolve(
+            table === "service_requests"
+              ? { data: ownRequest, error: null }
+              : { data: null, error: { message: "not found" } },
+          ),
+        ),
+        insert: vi.fn(() => Promise.resolve({ error: null })),
+        update: vi.fn(() => chain),
+        then: (resolve: (v: unknown) => void) => resolve({ error: null }),
+      };
+      return chain;
+    });
+
+    const res = await POST(new NextRequest("http://localhost/api/mercado/quote", {
+      method: "POST",
+      body: buildFormData(),
+    }));
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toContain("próprio pedido");
+    expect(mockSupabase.from).not.toHaveBeenCalledWith("service_quotes");
+  });
 });

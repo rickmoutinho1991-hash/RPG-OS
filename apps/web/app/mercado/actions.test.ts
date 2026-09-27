@@ -609,6 +609,111 @@ describe("Mercado Actions - P7b tests", () => {
       expect(result.error).toBeTruthy();
       expect(result.error).toContain("não está em estado elegível");
     });
+
+    it("dono do pedido tenta aceitar a própria proposta -> recusa (auto-contrato)", async () => {
+      const { getSessionContext } = await import("@/lib/session");
+      (getSessionContext as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        user: { id: "client-1", name: "Client" },
+        organization: { id: "org-123" },
+        permissions: ["marketplace.requests.create"],
+      });
+
+      const mockRequest = {
+        id: "req-1",
+        client_id: "client-1",
+        status: "QUOTES_RECEIVED",
+      };
+
+      const mockQuote = {
+        id: "quote-1",
+        request_id: "req-1",
+        provider_id: "client-1",
+        status: "SENT",
+      };
+
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "service_requests") {
+            return {
+              select: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockRequest, error: null })),
+                })),
+              })),
+            };
+          }
+          if (table === "service_quotes") {
+            return {
+              select: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    single: vi.fn(() => Promise.resolve({ data: mockQuote, error: null })),
+                  })),
+                })),
+              })),
+            };
+          }
+          return {
+            insert: vi.fn(() => Promise.resolve({ error: null })),
+          };
+        }),
+      };
+      (createAdminClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase);
+
+      const formData = new FormData();
+      formData.append("requestId", "req-1");
+      formData.append("quoteId", "quote-1");
+
+      const { acceptQuoteAction } = await import("@/app/mercado/actions");
+      const result = await acceptQuoteAction(formData);
+
+      expect(result.error).toBeTruthy();
+      expect(result.error).toContain("a tua própria proposta");
+      expect(mocks.acceptQuote).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("submitQuoteAction - edge cases", () => {
+    function quoteFormData(): FormData {
+      const form = new FormData();
+      form.append("requestId", "req-1");
+      form.append(
+        "items",
+        JSON.stringify([
+          { description: "Serviço A", quantity: 1, unit: "h", unitPriceCents: 500, taxRate: 23 },
+        ]),
+      );
+      form.append("subtotalCents", "500");
+      form.append("taxCents", "115");
+      form.append("totalCents", "615");
+      form.append("currency", "EUR");
+      form.append("validUntil", "2099-01-01T00:00:00.000Z");
+      return form;
+    }
+
+    it("dono do pedido tenta cotar o próprio pedido -> recusa", async () => {
+      const { getSessionContext } = await import("@/lib/session");
+      (getSessionContext as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        user: { id: "client-1", name: "Client" },
+        organization: { id: "org-123" },
+        permissions: ["marketplace.quotes.create"],
+      });
+
+      const mockRequest = {
+        id: "req-1",
+        client_id: "client-1",
+        status: "PUBLISHED",
+      };
+
+      const mockSupabase = makeSupabase(mockRequest);
+      (createAdminClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase);
+
+      const { submitQuoteAction } = await import("@/app/mercado/actions");
+      const result = await submitQuoteAction(quoteFormData());
+
+      expect(result.error).toBeTruthy();
+      expect(result.error).toContain("o teu próprio pedido");
+    });
   });
 
   describe("submitMilestoneAction - edge cases", () => {

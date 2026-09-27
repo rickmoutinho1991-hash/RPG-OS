@@ -74,6 +74,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Só é possível cotar pedidos publicados" }, { status: 400 });
   }
 
+  if (request.client_id === ctx.user.id) {
+    return NextResponse.json(
+      { error: "Não podes cotar o teu próprio pedido" },
+      { status: 400 },
+    );
+  }
+
   try {
     const marketplaceFlow = new MarketplaceFlow();
     const requestFlow = new ServicesRequestFlow();
