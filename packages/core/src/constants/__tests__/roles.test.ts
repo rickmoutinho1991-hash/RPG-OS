@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SYSTEM_ROLES, SystemRole } from "../roles";
+import { PERSONAL_BASELINE_PERMISSIONS, hasPermission } from "../permissions";
 
 describe("Controlo de Acessos Baseado em Funções (RBAC)", () => {
   it("deve definir permissão universal wildcard (*) para ADMIN", () => {
@@ -35,5 +36,10 @@ describe("Controlo de Acessos Baseado em Funções (RBAC)", () => {
       expect(SYSTEM_ROLES[role]).toBeDefined();
       expect(SYSTEM_ROLES[role].label).toBeTruthy();
     });
+  });
+
+  it("baseline pessoal concede a permissão de reputação no namespace usado pelos gates", () => {
+    expect(PERSONAL_BASELINE_PERMISSIONS).not.toContain("reputacao.view");
+    expect(hasPermission(PERSONAL_BASELINE_PERMISSIONS, "reputation.view")).toBe(true);
   });
 });

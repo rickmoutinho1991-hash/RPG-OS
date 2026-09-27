@@ -6,6 +6,7 @@
 import { isMemoryKind, type MemoryKind, type MemoryStore, type UserMemory } from "./types";
 
 const MAX_KEY_LENGTH = 200;
+const MAX_VALUE_BYTES = 8192;
 
 export class MemoryService {
   public constructor(private readonly store: MemoryStore) {}
@@ -25,7 +26,8 @@ export class MemoryService {
   ): Promise<void> {
     const userId = assertActorId(actorId);
     if (!assertKey(key)) throw new Error("Key inválida.");
-    if (!assertValue(value)) throw new Error("Valor inválido (não pode ser null ou array).");
+    if (!assertValue(value))
+      throw new Error("Valor inválido (não pode ser null, array ou exceder 8 KiB).");
     if (!isMemoryKind(kind)) throw new Error("Kind inválido.");
 
     await this.store.upsertMemory({ userId, key, value, kind });
@@ -54,10 +56,13 @@ function assertKey(key: string): boolean {
 }
 
 function assertValue(value: Record<string, unknown>): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.keys(value).length > 0
-  );
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    Object.keys(value).length === 0
+  )
+    return false;
+  if (JSON.stringify(value).length > MAX_VALUE_BYTES) return false;
+  return true;
 }

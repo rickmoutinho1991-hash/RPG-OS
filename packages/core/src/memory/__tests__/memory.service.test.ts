@@ -138,4 +138,16 @@ describe("MemoryService", () => {
       "Key inválida",
     );
   });
+
+  it("fail-closed: valor com serialização acima de 8 KiB é rejeitado", async () => {
+    const svc = freshService();
+
+    await expect(
+      svc.set(ACTOR, "grande", { note: "x".repeat(9000) }, "fact"),
+    ).rejects.toThrow("Valor inválido");
+
+    await svc.set(ACTOR, "ok", { note: "x".repeat(8000) }, "fact");
+    const memories = await svc.get(ACTOR);
+    expect(memories).toHaveLength(1);
+  });
 });

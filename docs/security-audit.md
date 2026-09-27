@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 142 ficheiros / 1887 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 142 ficheiros / 1889 testes.
 
 ## Eixos de tenant
 
@@ -55,6 +55,8 @@ permissões (`hasPermission` de `@rpg/core`).
 | `448522d` | **mercado** — 3 gaps: `api/mercado/pedido` sem `marketplace.requests.create`; auto-cota (dono cotava o próprio pedido); auto-aceitação (dono aceitava própria proposta → auto-contrato/pagamento) |
 | `1fd40d9` | **P0 webhooks + 6 P1 + 3 P2** em rotas API (ver "Varredura de rotas API") |
 | `9477820` | **2 P2** (categories, workflows) + **saude** alinhada às permissões declaradas (ver "Alinhamentos pós-varredura") |
+| `2b7ef0f` | backfill do hash na tabela |
+| `(novo commit)` | **varredura de permissões usadas vs concedidas** + limite 8 KiB em `api/memories` (ver "Varredura de permissões") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -155,6 +157,42 @@ Testes: 4 (connections GET/POST).
   (`lib/session.ts`, org + permissões). Nenhuma rota administrativa deve usar o
   primeiro para decisões de RBAC; `role === "ADMIN"` de `user_roles` é grant
   system-wide (não tenant-scoped) — mantido para capacidade de platform admin.
+
+## Varredura de permissões (usadas vs concedidas)
+
+Script estático: extraiu as permissões declaradas (`MODULES` + `PERMISSION_ACTIONS` +
+baseline de `constants/permissions.ts`, grants por papel em `orgRoles.ts`/`roles.ts`/
+`platformAuth.ts`) e cruzou com os literais `hasPermission("...")`/`guard("...")` em
+`apps/web` + `packages/core/src` (fora de testes).
+
+**Fix 1 — baseline `reputacao.view` → `reputation.view`** (permissions.ts:86): o módulo
+está registado como `{ id: "reputacao" }`, mas TODO o resto do sistema (orgRoles.ts,
+roles.ts, serviços, rotas `/reputacao`) usa o espaço `reputation.*`. Resultado: o
+módulo de reputação pessoal era inacessível a utilizadores sem organização (baseline
+nunca coincidia com o gate). Baseline agora alinhada ao namespace usado; teste regressa
+`hasPermission(baseline, "reputation.view") === true`. Sem drift residual de
+`reputacao.*` em código.
+
+**Fix 2 — P2 `api/memories` (tamanho do `value`)**: `MemoryService.set` aceitava valor
+pessoal sem limite (blob arbitrário). Novo `MAX_VALUE_BYTES = 8192`; valores acima são
+rejeitados (403 pelos gates existentes) com `"Valor inválido (não pode ser null, array
+ou exceder 8 KiB)."`. Mantém a exclusão de `null`/arrays. Testes: 2 novos.
+
+**Aceites documentados (sem fix)** — gates sem grant que só `OWNER`/`FOUNDER` (papéis
+com `["*"]` em orgRoles.ts) alcançam via wildcard; fail-closed para todo o resto:
+- `government.view` / `government.manage`;
+- `marketing.*` (view/manage);
+- `platform_fees.manage`;
+- `workflows.manage` (derivação: só guard no service, gate na rota);
+- alias morto `administracao.view` (nada o usa — não é leak, é lixo de nomenclatura);
+- `saude.manage` (decisão de produto já registada; mutações fail-closed);
+- `tarefas.edit` — coberto por `tarefas.manage` (implicação), não é bug.
+
+**Ruído excluído (não-RBAC)**: eventos de auditoria (`reputation.responded`,
+`at.connection.created`, `contract.activated`, `routing.*`); scopes de consentimento
+(`health.read.*`, `mobility.read.*`); capacidades de AI actors (`aiActor.ts`,
+`MarketplaceAiAgent`: `contracts.edit`, `orders.edit`, `evidence.create`,
+`marketplace.edit`); URLs; textos `module.action` em granularRbac.ts.
 
 ## Fecho do módulo mercado (`448522d`)
 

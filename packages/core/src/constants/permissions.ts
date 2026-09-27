@@ -83,7 +83,7 @@ export const PERSONAL_BASELINE_PERMISSIONS: string[] = [
   "diario.view",
   "saude.view",
   "ia.view",
-  "reputacao.view",
+  "reputation.view",
   "comunicacao.view",
   "marketplace.view",
   "marketplace.requests.create",
