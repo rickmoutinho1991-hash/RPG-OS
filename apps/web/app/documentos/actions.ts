@@ -2,6 +2,8 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/auth";
+import { getSessionContext } from "@/lib/session";
+import { hasPermission } from "@rpg/core";
 import { startApproval, resolveCompanyReviewer } from "@/lib/workflows";
 import { recordAuditEvent } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
@@ -223,6 +225,20 @@ export async function verifyDocumentAction(
       (!doc.company_id || doc.company_id !== currentUser.companyId)
     ) {
       return { success: false, error: "Sem acesso a este documento." };
+    }
+
+    // RBAC: documentos de TERCEIROS (ex.: de colaboradores da empresa)
+    // exigem documentos.manage (CEO, OCC, Jurista...). Documentos próprios
+    // mantêm self-service. Sem gate, qualquer membro da empresa podia
+    // mudar o estado de verificação de qualquer documento da empresa.
+    if (doc.owner_user_id !== currentUser.id) {
+      const ctx = await getSessionContext();
+      if (!ctx || !hasPermission(ctx.permissions, "documentos.manage")) {
+        return {
+          success: false,
+          error: "Sem permissão para validar documentos de terceiros.",
+        };
+      }
     }
 
     const { error } = await supabase

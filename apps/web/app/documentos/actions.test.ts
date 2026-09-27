@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createDocumentAction } from "./actions";
+import { verifyDocumentAction, createDocumentAction } from "./actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/auth";
+import { getSessionContext } from "@/lib/session";
 import { recordAuditEvent } from "@/lib/audit";
+import { revalidatePath } from "next/cache";
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
@@ -10,6 +12,10 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/lib/supabase/auth", () => ({
   getCurrentUser: vi.fn(),
+}));
+
+vi.mock("@/lib/session", () => ({
+  getSessionContext: vi.fn(),
 }));
 
 vi.mock("@/lib/audit", () => ({
@@ -30,6 +36,7 @@ function formData(userEmail?: string): FormData {
 
 function makeSupabase(overrides: Record<string, unknown | null>) {
   const insertPayloads: Array<Record<string, unknown>> = [];
+  const updatedTables: string[] = [];
   const from = vi.fn((table: string) => {
     const chain: any = {
       select: vi.fn(() => chain),
@@ -47,15 +54,24 @@ function makeSupabase(overrides: Record<string, unknown | null>) {
         insertPayloads.push(payload);
         return chain;
       }),
-      update: vi.fn(() => chain),
+      update: vi.fn(() => {
+        updatedTables.push(table);
+        return chain;
+      }),
     };
     return chain;
   });
   return {
     from,
     inserts: insertPayloads,
+    updatedTables,
     insertedDocument: () =>
-      insertPayloads.find((p) => p.owner_user_id !== undefined) ?? null,
+      insertPayloads.find(
+        (p) =>
+          p.owner_user_id !== undefined ||
+          p.document_id !== undefined ||
+          p.status !== undefined,
+      ) ?? null,
   };
 }
 
@@ -157,5 +173,97 @@ describe("documentos/actions - atribuicao fail-closed", () => {
     expect(res.success).toBe(false);
     expect(supabase.insertedDocument()).toBeNull();
     expect(recordAuditEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("documentos/actions - verifyDocumentAction RBAC", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  function mockSupabaseWithDoc(ownerUserId: string, companyId: string) {
+    const supabase = makeSupabase({
+      documents: { id: "doc-1", owner_user_id: ownerUserId, company_id: companyId },
+    });
+    (vi.mocked(createAdminClient) as unknown as ReturnType<typeof vi.fn>).mockReturnValue(supabase);
+    return supabase;
+  }
+
+  it("documento proprio mantem self-service sem gate de permissao", async () => {
+    (vi.mocked(getCurrentUser) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "user-1",
+      email: "eu@example.com",
+      companyId: "company-1",
+    });
+
+    const supabase = mockSupabaseWithDoc("user-1", "company-1");
+
+    const res = await verifyDocumentAction("doc-1", "VERIFIED");
+
+    expect(res.success).toBe(true);
+    expect(getSessionContext).not.toHaveBeenCalled();
+    expect(supabase.updatedTables).toContain("documents");
+    expect(supabase.from).toHaveBeenCalledWith("document_verifications");
+  });
+
+  it("documento de terceiro sem documentos.manage e recusado (sem escrita)", async () => {
+    (vi.mocked(getCurrentUser) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "user-1",
+      email: "eu@example.com",
+      companyId: "company-1",
+    });
+    (vi.mocked(getSessionContext) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      user: { id: "user-1" },
+      permissions: ["documentos.view", "tarefas.view"],
+    });
+
+    const supabase = mockSupabaseWithDoc("user-2", "company-1");
+
+    const res = await verifyDocumentAction("doc-1", "VERIFIED");
+
+    expect(res.success).toBe(false);
+    expect(supabase.updatedTables).not.toContain("documents");
+    expect(supabase.from).not.toHaveBeenCalledWith("document_verifications");
+  });
+
+  it("documento de terceiro sem sessao de org e recusado", async () => {
+    (vi.mocked(getCurrentUser) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "user-1",
+      email: "eu@example.com",
+      companyId: "company-1",
+    });
+    (vi.mocked(getSessionContext) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    const supabase = mockSupabaseWithDoc("user-2", "company-1");
+
+    const res = await verifyDocumentAction("doc-1", "VERIFIED");
+
+    expect(res.success).toBe(false);
+    expect(supabase.updatedTables).not.toContain("documents");
+  });
+
+  it("documento de terceiro com documentos.manage e permitido", async () => {
+    (vi.mocked(getCurrentUser) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "user-1",
+      email: "eu@example.com",
+      companyId: "company-1",
+    });
+    (vi.mocked(getSessionContext) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      user: { id: "user-1" },
+      permissions: ["documentos.view", "documentos.manage"],
+    });
+
+    const supabase = mockSupabaseWithDoc("user-2", "company-1");
+
+    const res = await verifyDocumentAction("doc-1", "REJECTED", "Documento ilegível");
+
+    expect(res.success).toBe(true);
+    expect(supabase.updatedTables).toContain("documents");
+    expect(supabase.from).toHaveBeenCalledWith("document_verifications");
+    expect(revalidatePath).toHaveBeenCalled();
   });
 });
