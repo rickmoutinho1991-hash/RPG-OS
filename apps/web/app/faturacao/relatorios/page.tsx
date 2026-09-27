@@ -1,21 +1,29 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/supabase/auth";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { calculateWithholdingTax } from "@rpg/core";
 
 export const dynamic = "force-dynamic";
 
 export default async function RelatoriosFinanceirosPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const supabase = createAdminClient();
 
-  const { data: invoices } = await supabase
-    .from("invoices")
-    .select(`
-      *,
-      invoice_items(*)
-    `);
-
-  const invList = invoices || [];
+  // Apuramento fiscal é sempre por empresa (eixo company). Sem companyId não
+  // há report de IVA legítimo — fail-closed, nunca query global.
+  const invList = user.companyId
+    ? ((await supabase
+        .from("invoices")
+        .select(`
+          *,
+          invoice_items(*)
+        `)
+        .eq("company_id", user.companyId)).data ?? [])
+    : [];
 
   let base23 = 0;
   let iva23 = 0;

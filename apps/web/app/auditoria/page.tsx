@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/supabase/auth";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import Link from "next/link";
 
@@ -48,13 +50,24 @@ export default async function AuditoriaPage({
   const userFilter = resolvedParams.user;
   const fromFilter = resolvedParams.from;
   const toFilter = resolvedParams.to;
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const supabase = createAdminClient();
+
+  // Escopo tenant: audit_logs pertence à company (eixo company) ou ao próprio
+  // utilizador. Sem companyId, vista apenas do próprio utilizador (fail-closed).
+  // A RLS replicada: user_id = own OU profiles.company_id = audit_logs.company_id.
+  const tenantScope = user.companyId
+    ? `company_id.eq.${user.companyId},user_id.eq.${user.id}`
+    : null;
 
   let query = supabase
     .from("audit_logs")
     .select("*")
     .order("timestamp", { ascending: false })
     .limit(50);
+  query = tenantScope ? query.or(tenantScope) : query.eq("user_id", user.id);
 
   if (moduleFilter) {
     query = query.eq("module", moduleFilter);
@@ -76,34 +89,71 @@ export default async function AuditoriaPage({
     query = query.lte("timestamp", new Date(toFilter).toISOString());
   }
 
-  // Users com permissão (resolver nomes para o filtro por utilizador)
-  const [logsRes, consentsRes, countRes, usersRes] = await Promise.all([
+  // Utilizadores da mesma empresa (resolver nomes/filtro) — nunca global.
+  let users: Array<{ id: string; email: string }> = [];
+  let companyUserIds: string[] | null = null;
+  if (user.companyId) {
+    const { data: collab } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("company_id", user.companyId)
+      .limit(500);
+    companyUserIds = (collab ?? [])
+      .map((r) => String((r as { user_id?: string }).user_id ?? ""))
+      .filter((id) => id.length > 0);
+    if (companyUserIds.length > 0) {
+      const { data: uRows } = await supabase
+        .from("users")
+        .select("id, email")
+        .in("id", companyUserIds)
+        .limit(200);
+      users = (uRows ?? []) as Array<{ id: string; email: string }>;
+    }
+  } else {
+    users = [{ id: user.id, email: user.email }];
+  }
+
+  // Consentimentos RGPD: apenas dos utilizadores da empresa (nunca global).
+  const consentQuery = supabase
+    .from("rgpd_consents")
+    .select("*, users(email)")
+    .order("accepted_at", { ascending: false })
+    .limit(20);
+  const scopedConsents =
+    companyUserIds && companyUserIds.length > 0
+      ? consentQuery.in("user_id", companyUserIds)
+      : consentQuery.eq("user_id", user.id);
+
+  const countQuery = supabase
+    .from("audit_logs")
+    .select("count", { count: "exact", head: true });
+  const scopedCount = tenantScope
+    ? countQuery.or(tenantScope)
+    : countQuery.eq("user_id", user.id);
+
+  const [logsRes, consentsRes, countRes] = await Promise.all([
     query,
-    supabase.from("rgpd_consents").select("*, users(email)").order("accepted_at", { ascending: false }).limit(20),
-    supabase
-      .from("audit_logs")
-      .select("count", { count: "exact", head: true }),
-    supabase.from("users").select("id, email").order("email", { ascending: true }).limit(200),
+    scopedConsents,
+    scopedCount,
   ]);
 
   const auditLogs = (logsRes.data ?? []) as AuditLogRow[];
   const consents = consentsRes.data ?? [];
   const totalCount = countRes.count ?? auditLogs.length;
-  const users = usersRes.data ?? [];
 
-  // Métricas reais
-  const moduleCountRes = await supabase
-    .from("audit_logs")
-    .select("module");
+  // Métricas reais (sempre no mesmo escopo tenant)
+  const moduleCountRes = await (tenantScope
+    ? supabase.from("audit_logs").select("module").or(tenantScope)
+    : supabase.from("audit_logs").select("module").eq("user_id", user.id));
   const perModule = new Map<string, number>();
   for (const m of moduleCountRes.data ?? []) {
     perModule.set(String(m.module), (perModule.get(String(m.module)) ?? 0) + 1);
   }
   const topModules = [...perModule.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
 
-  const actionCountRes = await supabase
-    .from("audit_logs")
-    .select("action, metadata");
+  const actionCountRes = await (tenantScope
+    ? supabase.from("audit_logs").select("action, metadata").or(tenantScope)
+    : supabase.from("audit_logs").select("action, metadata").eq("user_id", user.id));
   const originCounts = (actionCountRes.data ?? []).reduce(
     (acc, a) => {
       acc[inferOrigin(a.metadata as Record<string, unknown> | null)] += 1;
