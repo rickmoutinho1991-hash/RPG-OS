@@ -105,7 +105,7 @@ describe("POST /api/saude/connections", () => {
     vi.resetAllMocks();
   });
 
-  it("403 sem permissão saude.manage (mantido fail-closed enquanto não houver grant)", async () => {
+  it("403 sem permissão saude.manage", async () => {
     (vi.mocked(getSessionContext) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       authCtx(["saude.view"]),
     );
@@ -114,5 +114,53 @@ describe("POST /api/saude/connections", () => {
 
     expect(res.status).toBe(403);
     expect(mockSupabase.from).not.toHaveBeenCalled();
+  });
+
+  it("201 com saude.manage cria ligação apenas para a própria pessoa", async () => {
+    (vi.mocked(getSessionContext) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      authCtx(["saude.view", "saude.manage"]),
+    );
+
+    let inserted: unknown = null;
+    mockSupabase.from.mockImplementation((table: string) => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        is: vi.fn(() => chain),
+        single: vi.fn(() =>
+          table === "health_consents"
+            ? Promise.resolve({
+                data: { scopes: ["health.read.profile"], expires_at: null },
+                error: null,
+              })
+            : Promise.resolve({
+                data: { id: "health_conn_1", person_id: "user-1", provider_id: "SNS24" },
+                error: null,
+              }),
+        ),
+        insert: vi.fn((payload: unknown) => {
+          inserted = payload;
+          return chain;
+        }),
+        order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+      };
+      return chain;
+    });
+
+    const res = await POST(buildPost());
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.id).toBe("health_conn_1");
+    expect(body.person_id).toBe("user-1");
+    expect(inserted).toMatchObject({
+      person_id: "user-1",
+      provider_id: "SNS24",
+    });
+
+    const consentCalls = mockSupabase.from.mock.calls.filter(
+      (c: unknown[]) => c[0] === "health_consents",
+    );
+    expect(consentCalls.length).toBe(1);
   });
 });

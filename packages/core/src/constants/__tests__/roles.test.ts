@@ -42,4 +42,9 @@ describe("Controlo de Acessos Baseado em Funções (RBAC)", () => {
     expect(PERSONAL_BASELINE_PERMISSIONS).not.toContain("reputacao.view");
     expect(hasPermission(PERSONAL_BASELINE_PERMISSIONS, "reputation.view")).toBe(true);
   });
+
+  it("baseline pessoal concede saude.view e saude.manage (self-scoped ao ator)", () => {
+    expect(hasPermission(PERSONAL_BASELINE_PERMISSIONS, "saude.view")).toBe(true);
+    expect(hasPermission(PERSONAL_BASELINE_PERMISSIONS, "saude.manage")).toBe(true);
+  });
 });

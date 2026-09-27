@@ -82,6 +82,7 @@ export const PERSONAL_BASELINE_PERMISSIONS: string[] = [
   "documentos.view",
   "diario.view",
   "saude.view",
+  "saude.manage",
   "ia.view",
   "reputation.view",
   "comunicacao.view",

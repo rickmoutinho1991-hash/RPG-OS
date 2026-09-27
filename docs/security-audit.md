@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 144 ficheiros / 1896 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 144 ficheiros / 1898 testes.
 
 ## Eixos de tenant
 
@@ -59,6 +59,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `e078c9e` | **varredura de permissões usadas vs concedidas** + limite 8 KiB em `api/memories` (ver "Varredura de permissões") |
 | `ece42a7` | **P0 segredos** — password admin removida da seed migration; teste de regressão de segredos (ver "Varredura de segredos/env") |
 | `9fbe445` | **P1 RLS** — leitura global de moradas fechada (addresses); teste de regressão de policies (ver "Revisão RLS") |
+| `(novo commit)` | **Reativação `saude.manage`** — grant na baseline pessoal self-scoped; testes (ver "Reativação saude.manage") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -147,8 +148,7 @@ baseline concede `saude.view`; `saude.manage` não existe em nenhum papel). Reno
 para o espaço declarado `saude.*`:
 - Vistas (`saude.view`, baseline para todos os autenticados) reativadas — todos os
   queries são self-scoped (`person_id = ator`), sem exposição cross-tenant;
-- Mutações (`saude.manage`) continuam **fail-closed** (403) enquanto não existir grant
-  — reativar é decisão de produto (definir `saude.manage` num papel) e fica registada.
+- Mutações (`saude.manage`) ficam **fail-closed** (403) até decisão de produto.
 Testes: 4 (connections GET/POST).
 
 **Aceites documentados (sem fix)**:
@@ -187,7 +187,7 @@ com `["*"]` em orgRoles.ts) alcançam via wildcard; fail-closed para todo o rest
 - `platform_fees.manage`;
 - `workflows.manage` (derivação: só guard no service, gate na rota);
 - alias morto `administracao.view` (nada o usa — não é leak, é lixo de nomenclatura);
-- `saude.manage` (decisão de produto já registada; mutações fail-closed);
+- `saude.manage` — **reativado** (ver "Reativação saude.manage");
 - `tarefas.edit` — coberto por `tarefas.manage` (implicação), não é bug.
 
 **Ruído excluído (não-RBAC)**: eventos de auditoria (`reputation.responded`,
@@ -266,6 +266,19 @@ revogada.
 - Leituras de org/company em financeiro/marketing/government/revenue (membership
   ACTIVE) — a fronteira de autorização fina está na camada de app;
 - Reputação/evidence/marketplace: scoped por tenant + partes, coerente com produto.
+
+## Reativação saude.manage (decisão de produto)
+
+As mutações de saúde (`saude.manage` — criar/editar/eliminar ligações e
+consentimentos nos endpoints `api/saude/{connections,consents}*`) estavam
+**fail-closed** desde a varredura (permissão não concedida a nenhum papel),
+mantendo saudavelmente bloqueada uma funcionalidade pessoal pretendida. Decisão
+de produto (confirmada): **reativar via baseline pessoal** — `saude.manage`
+adicionado a `PERSONAL_BASELINE_PERMISSIONS`. Não é escalada de privilégio nas
+mutações: todas as rotas são self-scoped a `person_id = ctx.user.id` (+ scoping
+org membership quando em contexto org/company), pelo que o grant só permite ao
+ator gerir as SUAS ligações/consentimentos de saúde. Testes: baseline (`saude.view`
++ `saude.manage`), 403 sem a permissão, e POST 201 + self-scoping verificado.
 
 ## Fecho do módulo mercado (`448522d`)
 
