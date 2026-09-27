@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 149 ficheiros / 1918 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 150 ficheiros / 1921 testes.
 
 ## Eixos de tenant
 
@@ -65,6 +65,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `1e1d3b5` | **Fronteira web** — `X-Powered-By` desligado + espelho real dos headers/`public`/dev-only (ver "Fronteira web — headers e guardas dev-only") |
 | `822e273` | **Cobertura RLS por tabela** — nenhuma tabela nova nasce sem RLS (ver "Cobertura RLS por tabela") |
 | `4e5eb3f` | **SECURITY DEFINER** — guarda de `search_path` com `pg_temp` (ver "SECURITY DEFINER — search_path") |
+| `(novo commit)` | **EXECUTE grants** — nenhuma função SECURITY DEFINER com EXECUTE líquido para `anon`/`public` (ver "EXECUTE grants em funções") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
@@ -417,6 +418,31 @@ nos helpers de recursão (`is_same_company`, `is_same_project`, etc.).
 
 A guarda reconhece ambos os mecanismos (CREATE + ALTER) e aceita qualquer schema
 (`public`, `rpg_vault`, etc.).
+
+## EXECUTE grants em funções SECURITY DEFINER
+
+Uma função `SECURITY DEFINER` executa com os privilégios do DONO
+(tipicamente `postgres`), que **bypassa RLS**. Se `anon` ou `public`
+(que inclui `anon`) tem EXECUTE numa função SECURITY DEFINER, um
+atacante pode chamá-la diretamente via Postgrest (`/rpc/<nome>`) e
+executar SQL como owner — bypass total de RLS e acesso a dados RGPD.
+
+**Hardening já aplicado**: `20260929020000_rls_anon_execute_minimize.sql`
+revogou EXECUTE de `anon`/`public` em 7 funções booleanas de autorização
+(`has_org_permission`, `is_org_member`, `is_comms_member`, `is_same_company`,
+`is_same_project`, `service_request_is_for_client`,
+`service_quote_is_for_provider`, `reputation_in_tenant`).
+
+**Guarda estática nova** (`functionExecuteGuard.test.ts`, 3 testes, parse
+comment-aware ordenado por migration, computando o efeito líquido de
+GRANT/REVOKE):
+- nenhuma função `SECURITY DEFINER` tem EXECUTE líquido para `anon`;
+- nenhuma função `SECURITY DEFINER` tem EXECUTE líquido para `public`;
+- nenhuma função (qualquer) tem EXECUTE líquido para `public` sem estar
+  numa allowlist explícita.
+
+A guarda reconhece GRANT/REVOKE em cascata (o REVOKE posterior ao GRANT
+é computado como efeito líquido correto). Aceita qualquer schema.
 
 ## Reativação saude.manage (decisão de produto)
 
