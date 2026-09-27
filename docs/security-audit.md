@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 150 ficheiros / 1921 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 151 ficheiros / 1923 testes.
 
 ## Eixos de tenant
 
@@ -66,6 +66,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `822e273` | **Cobertura RLS por tabela** — nenhuma tabela nova nasce sem RLS (ver "Cobertura RLS por tabela") |
 | `4e5eb3f` | **SECURITY DEFINER** — guarda de `search_path` com `pg_temp` (ver "SECURITY DEFINER — search_path") |
 | `88ed34f` | **EXECUTE grants** — nenhuma função SECURITY DEFINER com EXECUTE líquido para `anon`/`public` (ver "EXECUTE grants em funções") |
+| `(novo commit)` | **Realtime publication** — só tabelas allowlist na publication `supabase_realtime` (ver "Realtime publication") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
@@ -443,6 +444,27 @@ GRANT/REVOKE):
 
 A guarda reconhece GRANT/REVOKE em cascata (o REVOKE posterior ao GRANT
 é computado como efeito líquido correto). Aceita qualquer schema.
+
+## Realtime publication
+
+O Supabase Realtime broadcast de mudanças de tabelas para clientes
+via WebSocket. Se uma tabela sensível (saúde, documentos, etc.) for
+adicionada à publication `supabase_realtime`, qualquer cliente
+autenticado pode subscrever e receber updates em tempo real de
+dados sensíveis — mesmo que a API esteja bloqueada.
+
+Hoje só `comms_messages` está na publication (intencional: o
+feature de mensagens precisa de real-time). Mas não há guarda
+estática que impeça regressão: se alguém adicionar
+`ALTER PUBLICATION supabase_realtime ADD TABLE public.health_connections`,
+nenhum teste apanha.
+
+**Guarda estática nova** (`realtimePublication.test.ts`, 2 testes,
+parse comment-aware):
+- toda tabela na publication `supabase_realtime` está numa allowlist
+  explícita (hoje: `comms_messages`);
+- nenhuma tabela sensível (saúde, documentos, pagamentos, reputação,
+  vault, audit, profiles, users, etc.) está na publication.
 
 ## Reativação saude.manage (decisão de produto)
 
