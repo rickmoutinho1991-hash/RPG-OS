@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 151 ficheiros / 1923 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 152 ficheiros / 1926 testes.
 
 ## Eixos de tenant
 
@@ -67,6 +67,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `4e5eb3f` | **SECURITY DEFINER** — guarda de `search_path` com `pg_temp` (ver "SECURITY DEFINER — search_path") |
 | `88ed34f` | **EXECUTE grants** — nenhuma função SECURITY DEFINER com EXECUTE líquido para `anon`/`public` (ver "EXECUTE grants em funções") |
 | `ed0faa6` | **Realtime publication** — só tabelas allowlist na publication `supabase_realtime` (ver "Realtime publication") |
+| `(novo commit)` | **Migration naming/order** — convenção `YYYYMMDDHHMMSS` + ordem cronológica (ver "Migration naming/order") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
@@ -465,6 +466,30 @@ parse comment-aware):
   explícita (hoje: `comms_messages`);
 - nenhuma tabela sensível (saúde, documentos, pagamentos, reputação,
   vault, audit, profiles, users, etc.) está na publication.
+
+## Migration naming/order
+
+O Supabase CLI espera migrations com prefixo `YYYYMMDDHHMMSS_nome.sql`.
+Migrações fora da convenção (ex.: `0001_...`) não são reconhecidas pelo
+`supabase db diff` / `supabase migration list`, o que quebra o fluxo de
+deploy e pode causar conflitos silenciosos de ordem.
+
+**Achados reais** (o teste apanhou):
+- 2 migrations com prefixo legado `NNNN_` (`0001_rpg_os_core`,
+  `0004_grant_service_role_permissions`) — criadas antes da convenção.
+  **Não renomeadas**: já estão aplicadas em produção e renomear corromperia
+  o histórico do `supabase_migrations.schema_migrations`. Allowlist
+  explícita no teste.
+- 1 timestamp duplicado: `20260929100000` é usado por
+  `20260929100000_rls_addresses_hardening.sql` e
+  `20260929100000_rls_supabase_functions_internal_hardening.sql`.
+  **Risco aceite**: a ordenação é determinística (alfabética dentro do mesmo
+  prefixo). TODO: corrigir num follow-up renomeando uma para `20260929100001`.
+
+**Guarda estática nova** (`migrationNaming.test.ts`, 3 testes):
+- toda migration segue `YYYYMMDDHHMMSS_nome.sql` (allowlist para as 2 legadas);
+- as migrations estão em ordem cronológica crescente pelo prefixo;
+- não há timestamps duplicados (allowlist para o conhecido).
 
 ## Reativação saude.manage (decisão de produto)
 
