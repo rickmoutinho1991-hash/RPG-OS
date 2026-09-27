@@ -39,6 +39,8 @@ export async function getQuotesList(params?: {
 
     if (user.companyId) {
       query = query.eq("company_id", user.companyId);
+    } else {
+      query = query.eq("client_id", user.id);
     }
 
     if (params?.status) {
@@ -107,6 +109,8 @@ export async function getQuoteById(id: string): Promise<any | null> {
 
     if (user.companyId) {
       quoteQuery = quoteQuery.eq("company_id", user.companyId);
+    } else {
+      quoteQuery = quoteQuery.eq("client_id", user.id);
     }
 
     const [quoteRes, itemsRes] = await Promise.all([
@@ -245,6 +249,8 @@ export async function createQuoteAction(data: {
 
     if (user.companyId) {
       countQuery = countQuery.eq("company_id", user.companyId);
+    } else {
+      countQuery = countQuery.eq("client_id", user.id);
     }
 
     const countRes = await countQuery;

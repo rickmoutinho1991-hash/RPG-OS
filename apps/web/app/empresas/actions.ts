@@ -31,6 +31,8 @@ export async function getCompaniesList(search?: string): Promise<any[]> {
 
     if (user.companyId) {
       query = query.eq("id", user.companyId);
+    } else {
+      query = query.is("id", null);
     }
 
     if (search) {

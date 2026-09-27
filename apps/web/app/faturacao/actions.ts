@@ -47,6 +47,8 @@ export async function getInvoicesList(params?: {
 
     if (user.companyId) {
       query = query.eq("company_id", user.companyId);
+    } else {
+      query = query.eq("client_id", user.id);
     }
 
     if (params?.status) {
@@ -116,6 +118,8 @@ export async function getInvoiceById(id: string): Promise<any | null> {
 
     if (user.companyId) {
       invQuery = invQuery.eq("company_id", user.companyId);
+    } else {
+      invQuery = invQuery.eq("client_id", user.id);
     }
 
     const [invoiceRes, itemsRes, paymentsRes] = await Promise.all([
@@ -273,6 +277,8 @@ export async function createInvoiceAction(data: {
 
     if (user.companyId) {
       countQuery = countQuery.eq("company_id", user.companyId);
+    } else {
+      countQuery = countQuery.eq("client_id", user.id);
     }
 
     const countRes = await countQuery;

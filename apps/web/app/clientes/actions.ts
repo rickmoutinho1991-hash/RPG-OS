@@ -48,17 +48,25 @@ export async function getClientesList(params?: {
 
     if (user.companyId) {
       profilesQuery = profilesQuery.eq("company_id", user.companyId);
+    } else {
+      profilesQuery = profilesQuery.is("id", null);
     }
 
-    const [profilesRes, usersRes] = await Promise.all([
-      profilesQuery,
-      supabase.from("users").select("id, email"),
-    ]);
+    const [profilesRes] = await Promise.all([profilesQuery]);
 
     const usersMap = new Map<string, string>();
-    if (usersRes.data) {
-      for (const u of usersRes.data) {
-        usersMap.set(u.id, u.email);
+    const profileUserIds = (profilesRes.data ?? [])
+      .map((p) => p.user_id as string | undefined)
+      .filter((id): id is string => Boolean(id));
+    if (profileUserIds.length > 0) {
+      const { data: usersData } = await supabase
+        .from("users")
+        .select("id, email")
+        .in("id", profileUserIds);
+      if (usersData) {
+        for (const u of usersData) {
+          usersMap.set(u.id, u.email);
+        }
       }
     }
 
@@ -136,6 +144,8 @@ export async function getClientById(userId: string): Promise<any | null> {
 
     if (user.companyId) {
       profileQuery = profileQuery.eq("company_id", user.companyId);
+    } else if (userId !== user.id) {
+      return null;
     }
 
     const [profileRes, projectsRes, quotesRes, auditLogsRes] = await Promise.all([
@@ -206,6 +216,8 @@ export async function updateClientAction(
       .or(`user_id.eq.${userId},id.eq.${userId}`);
     if (currentUser.companyId) {
       targetQuery = targetQuery.eq("company_id", currentUser.companyId);
+    } else if (userId !== currentUser.id) {
+      return { success: false, error: "Cliente não encontrado na sua empresa." };
     }
     const { data: target } = await targetQuery.limit(1).maybeSingle();
     if (!target) {

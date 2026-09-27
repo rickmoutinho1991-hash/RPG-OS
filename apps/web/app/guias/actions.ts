@@ -22,6 +22,8 @@ export async function getTransportDocumentsList(params?: {
 
     if (user.companyId) {
       query = query.eq("company_id", user.companyId);
+    } else {
+      query = query.eq("client_id", user.id);
     }
 
     if (params?.type) {
@@ -65,6 +67,8 @@ export async function getTransportDocumentById(
 
     if (user.companyId) {
       docQuery = docQuery.eq("company_id", user.companyId);
+    } else {
+      docQuery = docQuery.eq("client_id", user.id);
     }
 
     const [documentRes, itemsRes] = await Promise.all([
@@ -136,6 +140,8 @@ export async function createTransportDocumentAction(data: {
 
     if (user.companyId) {
       countQuery = countQuery.eq("company_id", user.companyId);
+    } else {
+      countQuery = countQuery.eq("client_id", user.id);
     }
 
     const countRes = await countQuery;

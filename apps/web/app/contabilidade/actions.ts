@@ -53,6 +53,8 @@ export async function getAccountingOverview(): Promise<{
 
     if (user.companyId) {
       invQuery = invQuery.eq("company_id", user.companyId);
+    } else {
+      invQuery = invQuery.eq("client_id", user.id);
     }
 
     const { data: invoices, error: invError } = await invQuery;

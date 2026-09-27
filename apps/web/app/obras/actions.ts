@@ -40,6 +40,8 @@ export async function getProjectsList(params?: {
 
     if (user.companyId) {
       query = query.eq("company_id", user.companyId);
+    } else {
+      query = query.eq("client_id", user.id);
     }
 
     if (params?.status) {
@@ -108,6 +110,8 @@ export async function getProjectById(id: string): Promise<any | null> {
 
     if (user.companyId) {
       projQuery = projQuery.eq("company_id", user.companyId);
+    } else {
+      projQuery = projQuery.eq("client_id", user.id);
     }
 
     const { data: project } = await projQuery.maybeSingle();
@@ -272,6 +276,8 @@ export async function createProjectAction(
 
     if (user.companyId) {
       countQuery = countQuery.eq("company_id", user.companyId);
+    } else {
+      countQuery = countQuery.eq("client_id", user.id);
     }
 
     const countRes = await countQuery;
