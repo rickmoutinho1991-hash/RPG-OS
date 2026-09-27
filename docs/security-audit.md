@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 142 ficheiros / 1889 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 143 ficheiros / 1893 testes.
 
 ## Eixos de tenant
 
@@ -57,6 +57,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `9477820` | **2 P2** (categories, workflows) + **saude** alinhada às permissões declaradas (ver "Alinhamentos pós-varredura") |
 | `2b7ef0f` | backfill do hash na tabela |
 | `e078c9e` | **varredura de permissões usadas vs concedidas** + limite 8 KiB em `api/memories` (ver "Varredura de permissões") |
+| `(novo commit)` | **P0 segredos** — password admin removida da seed migration; teste de regressão de segredos (ver "Varredura de segredos/env") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -193,6 +194,44 @@ com `["*"]` em orgRoles.ts) alcançam via wildcard; fail-closed para todo o rest
 (`health.read.*`, `mobility.read.*`); capacidades de AI actors (`aiActor.ts`,
 `MarketplaceAiAgent`: `contracts.edit`, `orders.edit`, `evidence.create`,
 `marketplace.edit`); URLs; textos `module.action` em granularRbac.ts.
+
+## Varredura de segredos/env
+
+`git grep` por literais (tokens `sk-`/`ghp_`/`AKIA`/JWT `eyJ…`, chaves privadas,
+connection strings, atribuições de `password`/`secret`/`api_key`) sobre ficheiros
+tracked + `.env.example`/`config.toml`/CI. Resultado: **1 achado real, P0**.
+
+**P0 — password admin plaintext em `20260820240000_seed_admin_user.sql`**: a migration
+embutia `crypt('rrtm14403874@', gen_salt('bf'))` (bootstrap do admin
+`moutinho@rpg-os.pt`), com o plaintext duplicado no INSERT e no UPDATE, mais o
+telemóvel pessoal `910000000` na profile. Atribuição de `createAdmin`-style que não é
+de app mas é de **bootstrap**: credencial previsível em todos os ambientes criados a
+partir do repo. Fix:
+- Password apenas via GUC `app.initial_admin_password` (`current_setting(guc, true)`);
+  sem GUC → `encrypted_password` NULL (conta sem password: login só por magic link /
+  password reset) + `RAISE LOG` instrutivo. Nunca versionar segredos;
+- Telemóvel pessoal → `NULL` (`profiles.phone` nullable);
+- Cabeçalho da migration documenta o mecanismo (rótulo "Moutinho" removido do título).
+
+**Regressão (teste novo)**: `apps/web/lib/__tests__/migrationSecrets.test.ts` (4
+testes) — nenhuma migration/seed embute password inline em `crypt()`, não contém JWTs
+type `eyJ…`, e `.env.example` só tem placeholders nas variáveis secretas.
+
+**Resultado da varredura — limpo**:
+- Sem `.env` em git (`apps/web/.env.example` é o único ficheiro env tracked;
+  `.gitignore` cobre `.env` / `.env.*` excepto o example);
+- `supabase/config.toml` só com `env(VAR)` (nunca valores);
+- Chaves privadas/SOAP: apenas fakes de teste e validação de input em
+  `atProvisioning.ts`; sem connection strings; sem tokens reais;
+- `NEXT_PUBLIC_` não expõe `service_role` (client usa publishable key; service role é
+  server-only via `SUPABASE_SERVICE_ROLE_KEY`).
+
+**Hygiene documentada (sem fix agora)**: a seed ainda referencia o email do dono
+(`moutinho@rpg-os.pt`) e o NIF `501234567` — dados pessoais do próprio dono, já
+usados como placeholders/aliases em `login/actions.ts`, `IntegracoesClient.tsx` e
+vários testes; param etrizar por ambiente é possível mas tem blast radius. Ação
+**externa obrigatória** (fora do código): rotacionar a password do admin em produção —
+o plaintext esteve no histórico git antes deste commit.
 
 ## Fecho do módulo mercado (`448522d`)
 
