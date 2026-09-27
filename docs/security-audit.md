@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 148 ficheiros / 1915 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 149 ficheiros / 1918 testes.
 
 ## Eixos de tenant
 
@@ -64,6 +64,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `919d2a0` | **Guarda do caminho RBAC legacy** — grants colon mortos (ver "Caminho RBAC legacy — colon") |
 | `1e1d3b5` | **Fronteira web** — `X-Powered-By` desligado + espelho real dos headers/`public`/dev-only (ver "Fronteira web — headers e guardas dev-only") |
 | `822e273` | **Cobertura RLS por tabela** — nenhuma tabela nova nasce sem RLS (ver "Cobertura RLS por tabela") |
+| `(novo commit)` | **SECURITY DEFINER** — guarda de `search_path` com `pg_temp` (ver "SECURITY DEFINER — search_path") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
@@ -389,6 +390,33 @@ e é intencional. O backend usa `service_role` (admin client) extensivamente
 aplicaria RLS também ao dono da tabela e bloquearia o próprio backend. O que a
 RLS protege é o que o browser alcança: `anon` e `authenticated`. O risco residual
 aceite é o `SECURITY DEFINER` mal escrito (já auditado nas vagas anteriores).
+
+## SECURITY DEFINER — search_path
+
+Em PostgreSQL, uma função `SECURITY DEFINER` executa com os privilégios do
+DONO (tipicamente `postgres`), que **bypassa RLS** e tem acesso total aos dados
+RGPD. Se `SET search_path` não incluir `pg_temp` explicitamente, um atacante
+pode criar um objeto malicioso no schema temp e **sequestrar a resolução de
+nomes** referenciados no corpo — executando SQL arbitrário como owner.
+
+Prova empírica documentada na migration `20260929000000_rls_search_path_pgtemp.sql`:
+com `search_path='public'`, o Postgres resolve `pg_temp.<nome>` ANTES de qualquer
+schema da lista quando `pg_temp` NÃO está listado — um `create temp table`
+fake no `pg_temp` passa a ser resolvido em vez da tabela real.
+
+**Hardening já aplicado**: `ALTER FUNCTION ... SET search_path TO 'public', 'pg_temp'`
+nas 4 funções de autorização (`has_org_permission`, `is_org_member`,
+`is_comms_member`, `comms_auto_join_creator`) + `SET search_path = vault, public, pg_temp`
+nos wrappers do vault (`rpg_vault_*`) + `SET search_path to 'public', 'pg_temp'`
+nos helpers de recursão (`is_same_company`, `is_same_project`, etc.).
+
+**Guarda estática nova** (`securityDefiner.test.ts`, 3 testes, parse comment-aware):
+- toda função `SECURITY DEFINER` tem `SET search_path` (no CREATE ou num ALTER posterior);
+- todo `search_path` efetivo inclui `pg_temp`;
+- nenhum bloco `SECURITY DEFINER` fica sem o delimitador `$$` de fecho.
+
+A guarda reconhece ambos os mecanismos (CREATE + ALTER) e aceita qualquer schema
+(`public`, `rpg_vault`, etc.).
 
 ## Reativação saude.manage (decisão de produto)
 
