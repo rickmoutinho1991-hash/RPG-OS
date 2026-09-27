@@ -30,6 +30,13 @@ export async function getDocumentsList(params?: {
   const user = await getCurrentUser();
   if (!user) return [];
 
+  // Documentos de identificação: a copy da página afirma "acesso estritamente
+  // restrito a administradores autorizados". Sem documentos.manage, o utilizador
+  // vê apenas os PRÓPRIOS documentos (fail-closed, nunca toda a coleção da empresa).
+  const ctx = await getSessionContext();
+  const canManage =
+    !!ctx && hasPermission(ctx.permissions, "documentos.manage");
+
   const supabase = createAdminClient();
 
   try {
@@ -51,7 +58,7 @@ export async function getDocumentsList(params?: {
       `)
       .order("uploaded_at", { ascending: false });
 
-    if (user.companyId) {
+    if (user.companyId && canManage) {
       query = query.or(`company_id.eq.${user.companyId},owner_user_id.eq.${user.id}`);
     } else {
       query = query.eq("owner_user_id", user.id);

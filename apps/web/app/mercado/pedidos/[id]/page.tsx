@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/session";
 import { MercadoDetail } from "./MercadoDetail";
+import { loadVisibleQuotes } from "./requestQuotes";
 
 export const dynamic = "force-dynamic";
 
@@ -40,38 +41,8 @@ export default async function MercadoPedidoPage({ params }: PageProps) {
       budget_currency,
       created_at,
       updated_at,
-      published_at,
-      quotes:service_quotes(
-        id,
-        request_id,
-        provider_id,
-        subtotal_cents,
-        tax_cents,
-        total_cents,
-        currency,
-        valid_until,
-        terms,
-        warranty_months,
-        estimated_start_date,
-        estimated_duration_days,
-        response_to_questions,
-        status,
-        sent_at,
-        viewed_at,
-        responded_at,
-        created_at,
-        updated_at,
-        items:service_quote_items(
-          id,
-          description,
-          quantity,
-          unit,
-          unit_price_cents,
-          tax_rate,
-          total_cents
-        )
-      )
-    `
+      published_at
+    `,
     )
     .eq("id", id)
     .single();
@@ -80,14 +51,24 @@ export default async function MercadoPedidoPage({ params }: PageProps) {
     notFound();
   }
 
-  const isOwner = request.client_id === ctx.user.id;
-  const hasQuote = request.quotes?.some((q: any) => q.provider_id === ctx.user.id);
+  const isOwner = (request as any).client_id === ctx.user.id;
+
+  // Cotações visíveis: próprias do provider, ou todas se owner (fail-closed).
+  const quotes = await loadVisibleQuotes(supabase.from, id, ctx.user.id, isOwner);
+  const hasQuote = quotes.some((q) => q.provider_id === ctx.user.id);
 
   if (!isOwner && !hasQuote) {
     notFound();
   }
 
-  return <MercadoDetail request={request} isOwner={isOwner} hasQuote={hasQuote} currentUserId={ctx.user.id} />;
+  return (
+    <MercadoDetail
+      request={{ ...request, quotes } as any}
+      isOwner={isOwner}
+      hasQuote={hasQuote}
+      currentUserId={ctx.user.id}
+    />
+  );
 }
 
 function redirect(href: string) {

@@ -25,6 +25,7 @@ function makeSupabase(overrides: Record<string, unknown | null>) {
   const insertPayloads: Array<{ table: string; payload: Record<string, unknown> }> = [];
   const updated: Array<string> = [];
   const eqCalls: Array<{ table: string; col: string; val: unknown }> = [];
+  const orFilters: Array<{ table: string; filter: string }> = [];
   const from = vi.fn((table: string) => {
     const pushEq = (col: string, val: unknown) => {
       eqCalls.push({ table, col, val });
@@ -33,7 +34,10 @@ function makeSupabase(overrides: Record<string, unknown | null>) {
     const chain: any = {
       select: vi.fn(() => chain),
       eq: pushEq,
-      or: vi.fn(() => chain),
+      or: vi.fn((filter: string) => {
+        orFilters.push({ table, filter });
+        return chain;
+      }),
       in: vi.fn(() => chain),
       order: vi.fn(() => chain),
       limit: vi.fn(() => chain),
@@ -60,6 +64,8 @@ function makeSupabase(overrides: Record<string, unknown | null>) {
     updatedTables: () => updated,
     eqCallsFor: (table: string, col: string) =>
       eqCalls.filter((c) => c.table === table && c.col === col).map((c) => c.val),
+    orFiltersFor: (table: string) =>
+      orFilters.filter((c) => c.table === table).map((c) => c.filter),
   };
 }
 
@@ -169,6 +175,23 @@ describe("clientes/actions - getClientById cross-tenant", () => {
     expect(supabase.eqCallsFor("projects", "client_id")).toContain(USER_2);
     expect(supabase.eqCallsFor("projects", "company_id")).toContain("company-1");
     expect(supabase.eqCallsFor("quotes", "company_id")).toContain("company-1");
+    // audit_logs do cliente escopados à empresa do ator (nunca o registo de
+    // outra empresa para o mesmo utilizador partilhado).
+    expect(
+      supabase.orFiltersFor("audit_logs").some((f) => f.includes("company_id.eq.company-1")),
+    ).toBe(true);
+  });
+
+  it("sem empresa, audit_logs do próprio não têm filter de empresa", async () => {
+    mockUser(USER_1, null);
+    const supabase = makeSupabase({ profiles: { user_id: USER_1, name: "Eu" } });
+    (vi.mocked(createAdminClient) as unknown as ReturnType<typeof vi.fn>).mockReturnValue(supabase);
+
+    const res = await getClientById(USER_1);
+
+    expect(res).not.toBeNull();
+    expect(supabase.eqCallsFor("audit_logs", "user_id")).toContain(USER_1);
+    expect(supabase.orFiltersFor("audit_logs")).toHaveLength(0);
   });
 
   it("sem empresa, e recusado ver cliente que nao seja o proprio", async () => {

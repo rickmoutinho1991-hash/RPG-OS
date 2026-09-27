@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/session";
+import { getCurrentUser } from "@/lib/supabase/auth";
 import { hasPermission } from "@rpg/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -146,9 +147,36 @@ export async function startDmAction(formData: FormData) {
   if (!otherId) return { error: "Destinatário obrigatório." };
   if (otherId === ctx.user.id) return { error: "Não pode mandar DM a si mesmo." };
 
-  const slug = buildDmSlug(ctx.user.id, otherId);
-
   const supabase = createAdminClient();
+
+  // Fail-closed: DM só para colegas. Colega = mesma organização (org ativa) OU
+  // mesma empresa (company_employees). Sem vínculo → sem DM.
+  const user = await getCurrentUser();
+  const orgLink = ctx.organization?.id
+    ? await supabase
+        .from("org_memberships")
+        .select("id")
+        .eq("organization_id", ctx.organization.id)
+        .eq("user_id", otherId)
+        .eq("status", "ACTIVE")
+        .maybeSingle()
+    : { data: null };
+  const companyLink = user?.companyId
+    ? await supabase
+        .from("company_employees")
+        .select("id")
+        .eq("user_id", otherId)
+        .eq("company_id", user.companyId)
+        .maybeSingle()
+    : { data: null };
+
+  if (!orgLink?.data && !companyLink?.data) {
+    return {
+      error: "Destinatário não é membro da sua organização nem da sua empresa.",
+    };
+  }
+
+  const slug = buildDmSlug(ctx.user.id, otherId);
 
   const { data: existing } = await supabase
     .from("comms_channels")

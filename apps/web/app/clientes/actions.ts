@@ -166,16 +166,26 @@ export async function getClientById(userId: string): Promise<any | null> {
       quotesQuery = quotesQuery.eq("company_id", user.companyId);
     }
 
+    // audit_logs: escopo tenant igual ao page auditor — registos da empresa do
+    // ator OU do próprio cliente (logs pessoais com company_id null). Sem isto,
+    // um cliente partilhado expunha o registo de atividade das outras empresas.
+    let auditLogsQuery = supabase
+      .from("audit_logs")
+      .select("*")
+      .eq("user_id", userId)
+      .order("timestamp", { ascending: false })
+      .limit(10);
+    if (user.companyId) {
+      auditLogsQuery = auditLogsQuery.or(
+        `company_id.eq.${user.companyId},company_id.is.null`,
+      );
+    }
+
     const [profileRes, projectsRes, quotesRes, auditLogsRes] = await Promise.all([
       profileQuery.maybeSingle(),
       projectsQuery,
       quotesQuery,
-      supabase
-        .from("audit_logs")
-        .select("*")
-        .eq("user_id", userId)
-        .order("timestamp", { ascending: false })
-        .limit(10),
+      auditLogsQuery,
     ]);
 
     const profile = profileRes.data;

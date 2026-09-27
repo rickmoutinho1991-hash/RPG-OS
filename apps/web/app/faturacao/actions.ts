@@ -201,34 +201,47 @@ export async function createInvoiceAction(data: {
       }
     }
 
-    if (!resolvedClientId && data.clientEmail) {
-      const { data: userByEmail } = await supabase
+    // Cliente sem conta RPG-OS: criar perfil "consumidor" só em último recurso,
+    // com email válido, NIF omitido (nunca fabricar 999999990) e registo de
+    // auditoria. Antes, procurar sempre por email/utilizador existente para
+    // reutilizar (idempotente) e evitar perfis duplicados por fatura.
+    if (!resolvedClientId && data.clientEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.clientEmail.trim())) {
+      const email = data.clientEmail.trim().toLowerCase();
+
+      const { data: existingClient } = await supabase
         .from("users")
         .select("id")
-        .eq("email", data.clientEmail.trim().toLowerCase())
+        .eq("email", email)
         .maybeSingle();
 
-      if (userByEmail) {
-        resolvedClientId = userByEmail.id;
-      }
-    }
+      if (existingClient) {
+        resolvedClientId = existingClient.id;
+      } else {
+        const { data: createdUser, error: createError } = await supabase
+          .from("users")
+          .insert({ email })
+          .select("id")
+          .single();
 
-    // Se ainda não existir, criar registo de utilizador consumidor
-    if (!resolvedClientId && data.clientEmail) {
-      const email = data.clientEmail.trim().toLowerCase();
-      const { data: createdUser, error: createError } = await supabase
-        .from("users")
-        .insert({ email })
-        .select("id")
-        .single();
-
-      if (!createError && createdUser) {
-        resolvedClientId = createdUser.id;
-        await supabase.from("profiles").insert({
-          user_id: createdUser.id,
-          name: email.split("@")[0],
-          tax_number: "999999990",
-        });
+        if (!createError && createdUser) {
+          resolvedClientId = createdUser.id;
+          await supabase.from("profiles").insert({
+            user_id: createdUser.id,
+            name: email.split("@")[0].slice(0, 60),
+            sector: "CUSTOMER",
+            company_id: user.companyId ?? null,
+            tax_number: null,
+          });
+          await recordAuditEvent({
+            userId: user.id,
+            companyId: user.companyId ?? null,
+            action: "INVOICE_GUEST_CREATED",
+            module: "INVOICING",
+            entityType: "PROFILE",
+            entityId: createdUser.id,
+            metadata: { email },
+          });
+        }
       }
     }
 

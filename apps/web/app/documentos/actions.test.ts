@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { verifyDocumentAction, createDocumentAction } from "./actions";
+import {
+  verifyDocumentAction,
+  createDocumentAction,
+  getDocumentsList,
+} from "./actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { getSessionContext } from "@/lib/session";
@@ -37,12 +41,20 @@ function formData(userEmail?: string): FormData {
 function makeSupabase(overrides: Record<string, unknown | null>) {
   const insertPayloads: Array<Record<string, unknown>> = [];
   const updatedTables: string[] = [];
+  const eqCalls: Array<{ table: string; col: string; val: unknown }> = [];
+  const orCalls: Array<{ table: string; filter: string }> = [];
   const from = vi.fn((table: string) => {
     const chain: any = {
       select: vi.fn(() => chain),
-      eq: vi.fn(() => chain),
+      eq: (col: string, val: unknown) => {
+        eqCalls.push({ table, col, val });
+        return chain;
+      },
       in: vi.fn(() => chain),
-      or: vi.fn(() => chain),
+      or: (filter: string) => {
+        orCalls.push({ table, filter });
+        return chain;
+      },
       order: vi.fn(() => chain),
       maybeSingle: vi.fn(() =>
         Promise.resolve({ data: overrides[table] ?? null, error: null }),
@@ -65,6 +77,10 @@ function makeSupabase(overrides: Record<string, unknown | null>) {
     from,
     inserts: insertPayloads,
     updatedTables,
+    eqCallsFor: (table: string, col: string) =>
+      eqCalls.filter((c) => c.table === table && c.col === col).map((c) => c.val),
+    orFiltersFor: (table: string) =>
+      orCalls.filter((c) => c.table === table).map((c) => c.filter),
     insertedDocument: () =>
       insertPayloads.find(
         (p) =>
@@ -265,5 +281,59 @@ describe("documentos/actions - verifyDocumentAction RBAC", () => {
     expect(supabase.updatedTables).toContain("documents");
     expect(supabase.from).toHaveBeenCalledWith("document_verifications");
     expect(revalidatePath).toHaveBeenCalled();
+  });
+});
+
+describe("documentos/actions - getDocumentsList (copy: acesso a administradores)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("gestor (documentos.manage) vê os documentos da própria empresa", async () => {
+    (vi.mocked(getCurrentUser) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "user-1",
+      email: "manager@example.com",
+      companyId: "company-1",
+    });
+    (vi.mocked(getSessionContext) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      user: { id: "user-1" },
+      permissions: ["documentos.manage", "documentos.view"],
+    });
+
+    const supabase = makeSupabase({ documents: [] });
+    (vi.mocked(createAdminClient) as unknown as ReturnType<typeof vi.fn>).mockReturnValue(supabase);
+
+    await getDocumentsList();
+
+    expect(
+      supabase
+        .orFiltersFor("documents")
+        .some((f) => f.includes("company_id.eq.company-1")),
+    ).toBe(true);
+    expect(supabase.eqCallsFor("documents", "owner_user_id")).toHaveLength(0);
+  });
+
+  it("colaborador sem documentos.manage vê só os próprios documentos (fail-closed)", async () => {
+    (vi.mocked(getCurrentUser) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "user-1",
+      email: "emp@example.com",
+      companyId: "company-1",
+    });
+    (vi.mocked(getSessionContext) as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      user: { id: "user-1" },
+      permissions: ["documentos.view"],
+    });
+
+    const supabase = makeSupabase({ documents: [] });
+    (vi.mocked(createAdminClient) as unknown as ReturnType<typeof vi.fn>).mockReturnValue(supabase);
+
+    await getDocumentsList();
+
+    expect(supabase.orFiltersFor("documents")).toHaveLength(0);
+    expect(supabase.eqCallsFor("documents", "owner_user_id")).toContain("user-1");
   });
 });

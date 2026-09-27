@@ -20,18 +20,32 @@ export interface IPortugueseAuthAdapter {
 }
 
 export class PortugueseAuthAdapter implements IPortugueseAuthAdapter {
+  private readonly isProduction: boolean;
+  private readonly providerConfigured: boolean;
+
   constructor(
     private readonly config: {
       providerClientId?: string;
       providerSecret?: string;
       isProduction?: boolean;
     } = {},
-  ) {}
+  ) {
+    this.isProduction =
+      config.isProduction ?? process.env.NODE_ENV === "production";
+    this.providerConfigured = Boolean(config.providerClientId);
+  }
 
   async initiateChaveMovelLogin(
     request: ChaveMovelDigitalAuthRequest,
   ): Promise<{ redirectUrl: string; transactionId: string }> {
-    if (!this.config.providerClientId) {
+    if (!this.providerConfigured) {
+      // Em produção sem credenciais AMA, NUNCA devolver o mock de login —
+      // falhar em vez de aceitar autenticação falsa.
+      if (this.isProduction) {
+        throw new Error(
+          "Chave Móvel Digital indisponível (provedor AMA não configurado).",
+        );
+      }
       // Stub preparado para ambiente sem credenciais ativas do AMA / Autenticação.gov
       const transactionId = `cmd_tx_${Date.now()}`;
       return {
@@ -57,6 +71,15 @@ export class PortugueseAuthAdapter implements IPortugueseAuthAdapter {
       };
     }
 
+    if (this.isProduction) {
+      // Não há validação real de callback implementada — nunca autenticar com
+      // base apenas num token de forma (falha fechada em produção).
+      return {
+        authenticated: false,
+        error: "Verificação Chave Móvel Digital indisponível.",
+      };
+    }
+
     return {
       authenticated: true,
       nif: "999999990",
@@ -72,6 +95,13 @@ export class PortugueseAuthAdapter implements IPortugueseAuthAdapter {
       return {
         authenticated: false,
         error: "Certificado ou assinatura digital inválidos.",
+      };
+    }
+
+    if (this.isProduction) {
+      return {
+        authenticated: false,
+        error: "Verificação Cartão de Cidadão indisponível.",
       };
     }
 
