@@ -55,6 +55,14 @@ export default async function DashboardPage({
     invoicesQuery = invoicesQuery.eq("company_id", companyId);
     auditQuery = auditQuery.eq("company_id", companyId);
     profilesQuery = profilesQuery.eq("company_id", companyId);
+  } else {
+    // Fail-closed: utilizador sem empresa vê apenas os PRÓPRIOS registos
+    // (client_id/user_id), nunca query global de todos os tenants.
+    projectsQuery = projectsQuery.eq("client_id", userId);
+    quotesQuery = quotesQuery.eq("client_id", userId);
+    invoicesQuery = invoicesQuery.eq("client_id", userId);
+    auditQuery = auditQuery.eq("user_id", userId);
+    profilesQuery = profilesQuery.eq("user_id", userId);
   }
 
   // Contadores e métricas em tempo real

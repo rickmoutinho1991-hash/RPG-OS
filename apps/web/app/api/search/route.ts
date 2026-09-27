@@ -4,6 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { getSessionContext } from "@/lib/session";
+import { getCurrentUser } from "@/lib/supabase/auth";
 import { hasPermission } from "@rpg/core/constants/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SearchResultItem } from "@rpg/core";
@@ -15,6 +16,12 @@ export async function GET(request: Request) {
   if (!ctx) {
     return NextResponse.json({ results: [] }, { status: 401 });
   }
+
+  // company_id (eixo fiscal/financeiro) resolve-se do PERFIL (getCurrentUser),
+  // nunca de organization_id (eixo RBAC) da sessão — UUIDs de tabelas
+  // distintas e semanticamente incomparáveis.
+  const me = await getCurrentUser();
+  const companyId = me?.companyId ?? null;
 
   const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) {
@@ -69,12 +76,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (orgId && can("clientes.view")) {
+  if (companyId && can("clientes.view")) {
     push(async () => {
       const { data } = await supabase
         .from("profiles")
         .select("id, name, tax_number")
-        .eq("company_id", orgId)
+        .eq("company_id", companyId)
         .ilike("name", like)
         .limit(5);
       for (const p of data ?? []) {
@@ -89,12 +96,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (orgId && can("orcamentos.view")) {
+  if (companyId && can("orcamentos.view")) {
     push(async () => {
       const { data } = await supabase
         .from("quotes")
         .select("id, quote_number, title")
-        .eq("company_id", orgId)
+        .eq("company_id", companyId)
         .or(`quote_number.ilike.${like},title.ilike.${like}`)
         .limit(5);
       for (const qt of data ?? []) {
@@ -103,12 +110,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (orgId && can("faturacao.view")) {
+  if (companyId && can("faturacao.view")) {
     push(async () => {
       const { data } = await supabase
         .from("invoices")
         .select("id, invoice_number, total")
-        .eq("company_id", orgId)
+        .eq("company_id", companyId)
         .ilike("invoice_number", like)
         .limit(5);
       for (const inv of data ?? []) {
@@ -123,12 +130,12 @@ export async function GET(request: Request) {
     });
   }
 
-  if (orgId && can("obras.view")) {
+  if (companyId && can("obras.view")) {
     push(async () => {
       const { data } = await supabase
         .from("projects")
         .select("id, code, title")
-        .eq("company_id", orgId)
+        .eq("company_id", companyId)
         .or(`code.ilike.${like},title.ilike.${like}`)
         .limit(5);
       for (const pr of data ?? []) {
@@ -197,15 +204,18 @@ export async function GET(request: Request) {
     });
   }
 
-  if (orgId && can("financas.view")) {
+  if (can("financas.view")) {
     push(async () => {
-      const { data } = await supabase
+      let bq = supabase
         .from("finance_bills")
         .select("id, name, amount, due_date, status")
-        .or(`company_id.eq.${orgId},user_id.eq.${ctx.user.id}`)
         .ilike("name", like)
         .order("due_date", { ascending: false })
         .limit(5);
+      bq = companyId
+        ? bq.or(`company_id.eq.${companyId},user_id.eq.${ctx.user.id}`)
+        : bq.eq("user_id", ctx.user.id);
+      const { data } = await bq;
       for (const b of data ?? []) {
         results.push({
           type: "bill",
@@ -218,15 +228,18 @@ export async function GET(request: Request) {
     });
   }
 
-  if (orgId && can("documentos.view")) {
+  if (can("documentos.view")) {
     push(async () => {
-      const { data } = await supabase
+      let dq = supabase
         .from("documents")
         .select("id, file_name, type, status")
-        .or(`company_id.eq.${orgId},owner_user_id.eq.${ctx.user.id}`)
         .ilike("file_name", like)
         .order("uploaded_at", { ascending: false })
         .limit(5);
+      dq = companyId
+        ? dq.or(`company_id.eq.${companyId},owner_user_id.eq.${ctx.user.id}`)
+        : dq.eq("owner_user_id", ctx.user.id);
+      const { data } = await dq;
       for (const d of data ?? []) {
         results.push({
           type: "document",

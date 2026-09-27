@@ -329,7 +329,15 @@ export async function cancelWorkflowAction(
   const row = await loadInstance(instanceId);
   if (!row) return { success: false, error: "Pedido de aprovação não encontrado." };
 
-  const canManageForOrg = ctx.permissions.includes("workflows.manage");
+  // Permissão server-side para a organização DA INSTÂNCIA (isolamento
+  // multi-tenant), nunca só da organização ativa da sessão — espelha
+  // decideWorkflowAction. Instâncias sem organização: contexto atual.
+  const canManageForOrg = row.organization_id
+    ? hasPermission(
+        await resolveActorPermissionsInOrg(row.organization_id, ctx.user.id),
+        "workflows.manage",
+      )
+    : hasPermission(ctx.permissions, "workflows.manage");
   const verdict = canCancelWorkflow(
     {
       id: row.id,
