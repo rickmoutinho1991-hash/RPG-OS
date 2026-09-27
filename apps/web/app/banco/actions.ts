@@ -179,7 +179,7 @@ export async function executeSepaTransferAction(
   const supabase = createAdminClient();
 
   try {
-    // 1. Procurar ou criar conta principal
+// 1. Procurar ou criar conta principal
     let accountId = request.sourceAccountId;
     if (!accountId || accountId === "acc_default") {
       const { data: existingAcc } = await supabase
@@ -207,6 +207,23 @@ export async function executeSepaTransferAction(
           .single();
         accountId = newAcc?.id || "acc_default";
       }
+    } else {
+      // Ownership check: sourceAccountId vem do cliente — só pode ser conta
+      // PRÓPRIA ou da empresa do utilizador, nunca de outro tenant.
+      const accountScope = user.companyId
+        ? `user_id.eq.${user.id},company_id.eq.${user.companyId}`
+        : `user_id.eq.${user.id}`;
+      const { data: owned } = await supabase
+        .from("bank_accounts")
+        .select("id")
+        .eq("id", accountId)
+        .or(accountScope)
+        .maybeSingle();
+
+      if (!owned) {
+        return { success: false, error: "Conta de origem inválida." };
+      }
+      accountId = owned.id;
     }
 
     // 2. Registar a transação de débito

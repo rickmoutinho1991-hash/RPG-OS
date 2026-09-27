@@ -190,6 +190,23 @@ export async function verifyDocumentAction(
   const supabase = createAdminClient();
 
   try {
+    // Tenant isolation (igual a submitDocumentForApprovalAction): o documento
+    // tem de pertencer ao utilizador OU à empresa. Nunca atualizar por id
+    // arbitrário.
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id, owner_user_id, company_id")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    if (!doc) return { success: false, error: "Documento não encontrado." };
+    if (
+      doc.owner_user_id !== currentUser.id &&
+      (!doc.company_id || doc.company_id !== currentUser.companyId)
+    ) {
+      return { success: false, error: "Sem acesso a este documento." };
+    }
+
     const { error } = await supabase
       .from("documents")
       .update({ status: newStatus })

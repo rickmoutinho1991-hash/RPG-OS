@@ -86,12 +86,14 @@ export async function addExternalReferenceAction(input: {
 
 export async function removeExternalReferenceAction(referenceId: string) {
   const ctx = await getSessionContext();
-  if (!ctx) return { ok: false, error: "UNAUTHENTICATED" };
+  if (!ctx || !ctx.organization?.id) return { ok: false, error: "UNAUTHENTICATED_OR_ORG_REQUIRED" };
   if (!hasPermission(ctx.permissions, "reputation.manage")) return { ok: false, error: "FORBIDDEN" };
 
-  await createAdminClient()
+  const { error } = await createAdminClient()
     .from("reputation_external_references")
     .delete()
-    .eq("id", referenceId);
-  return { ok: true };
+    .eq("id", referenceId)
+    .eq("organization_id", ctx.organization.id);
+
+  return error ? { ok: false, error: "DELETE_FAILED" } : { ok: true };
 }

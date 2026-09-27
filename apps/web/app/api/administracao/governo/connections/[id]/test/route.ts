@@ -16,6 +16,10 @@ export async function POST(
 
   if (!orgId) return NextResponse.json({ error: "Organização não encontrada" }, { status: 404 });
 
+  if (!hasPermission(ctx.permissions, "government.manage")) {
+    return NextResponse.json({ error: "Sem permissão para gerir ligações." }, { status: 403 });
+  }
+
   const { data: connection, error } = await supabase
     .from("government_connections")
     .select("*")

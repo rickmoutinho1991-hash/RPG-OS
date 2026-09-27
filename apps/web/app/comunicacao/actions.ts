@@ -50,12 +50,46 @@ export async function sendMessageAction(formData: FormData) {
     return { error: "Apenas a direção pode publicar comunicados." };
   }
 
+  const supabase = createAdminClient();
+
+  // Tenant isolation: o canal tem de ser do contexto do utilizador. Nunca
+  // aceitar channel_id arbitrário — espelha o modelo de leitura do page.tsx:
+  //   - canal TEAM da organização ativa → OK
+  //   - canal pessoal (organization_id null, sem org ativa) → OK
+  //   - DM (organization_id null, tipo DIRECT) → exige pertença (membership)
+  //   - qualquer outro (canal de outra org, DM sem pertença) → negado
+  const { data: channel } = await supabase
+    .from("comms_channels")
+    .select("id, organization_id, type")
+    .eq("id", channelId)
+    .maybeSingle();
+
+  if (!channel) return { error: "Canal não encontrado." };
+
+  const isOrgChannel = Boolean(
+    ctx.organization?.id && channel.organization_id === ctx.organization.id,
+  );
+  const isPersonalChannel =
+    channel.organization_id === null && !ctx.organization?.id;
+  const isDm = channel.organization_id === null && channel.type === "DIRECT";
+
+  if (!isOrgChannel && !isPersonalChannel && isDm) {
+    const { data: membership } = await supabase
+      .from("comms_channel_members")
+      .select("user_id")
+      .eq("channel_id", channelId)
+      .eq("user_id", ctx.user.id)
+      .maybeSingle();
+    if (!membership) return { error: "Sem acesso a este canal." };
+  } else if (!isOrgChannel && !isPersonalChannel && !isDm) {
+    return { error: "Sem acesso a este canal." };
+  }
+
   const mentions = resolveMentionIds(
     extractMentionTokens(body),
     await channelMembersForMentions(channelId),
   );
 
-  const supabase = createAdminClient();
   const { error } = await supabase.from("comms_messages").insert({
     channel_id: channelId,
     author_id: ctx.user.id,
@@ -167,6 +201,36 @@ export async function markChannelReadAction(formData: FormData) {
   if (!channelId) return { error: "Canal inválido." };
 
   const supabase = createAdminClient();
+
+  // Acesso ao canal antes de criar/atualizar estado de leitura — mesmo
+  // critério do sendMessageAction (nunca upsert em canal arbitrário).
+  const { data: channel } = await supabase
+    .from("comms_channels")
+    .select("id, organization_id, type")
+    .eq("id", channelId)
+    .maybeSingle();
+
+  if (!channel) return { error: "Canal não encontrado." };
+
+  const isOrgChannel = Boolean(
+    ctx.organization?.id && channel.organization_id === ctx.organization.id,
+  );
+  const isPersonalChannel =
+    channel.organization_id === null && !ctx.organization?.id;
+  const isDm = channel.organization_id === null && channel.type === "DIRECT";
+
+  if (!isOrgChannel && !isPersonalChannel && isDm) {
+    const { data: membership } = await supabase
+      .from("comms_channel_members")
+      .select("user_id")
+      .eq("channel_id", channelId)
+      .eq("user_id", ctx.user.id)
+      .maybeSingle();
+    if (!membership) return { error: "Sem acesso a este canal." };
+  } else if (!isOrgChannel && !isPersonalChannel && !isDm) {
+    return { error: "Sem acesso a este canal." };
+  }
+
   const { error } = await supabase.from("comms_channel_members").upsert(
     { channel_id: channelId, user_id: ctx.user.id, last_read_at: new Date().toISOString() },
     { onConflict: "channel_id,user_id" },
