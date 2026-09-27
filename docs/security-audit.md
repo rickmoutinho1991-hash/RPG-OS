@@ -1,7 +1,8 @@
-# Auditoria de segurança — camada de aplicação
+# Auditoria de segurança — camada de aplicação + RLS
 
-Data: 2026-09-27 · Escopo: usos de `createAdminClient()` (service_role, bypass de RLS)
-em server actions, páginas server-side e API routes.
+Data: 2026-09-27 · Escopo: (1) usos de `createAdminClient()` (service_role, bypass de
+RLS) em server actions, páginas server-side e API routes; (2) verificação estática
+das políticas RLS em `supabase/migrations/`.
 
 ## Contexto e método
 
@@ -89,18 +90,54 @@ permissões (`hasPermission` de `@rpg/core`).
 
 ## RLS que a BD deve espelhar (defesa em profundidade)
 
-Há neste repositório, criar as policy functions equivalentes:
+### Verificação (estática, 2026-09-27) — políticas em `supabase/migrations/`
 
-1. **documents** — `select`: `owner_user_id = actor` OU
-   (`company_id = actor.company` E actor tem `documentos.manage`); URLs assinados só
-   para admins.
-2. **service_quotes** — `select`: `provider_id = actor` OU
-   `request.client_id = actor` (pedido dono).
-3. **audit_logs / bank_accounts / notifications** — `user_id = actor` OU
-   `company_id = actor.company`.
-4. **invoices / quotes / projects / personal_* (fiscal)** — `company_id = actor.company`
-   OU `client_id`/`user_id = actor`.
-5. **comms_channels / comms_messages** — org: membro da org ativa; DM: membro do canal.
+Estado: 4 de 5 itens **já espelhados**; `documents` parcial (gap aceite). A BD não
+tem função/view de permissões (`resolveEffectivePermissions` vive só em TS) — o
+espelho usa helpers `stable security definer` com `set search_path to 'public',
+'pg_temp'` (`20260929000000`/`20260929010000`) e grants mínimos via série M-G
+(`20260929020000`–`20260929100000`: revoke anon em 95 tabelas, tables zero-policy,
+`truncate/references/trigger`, functions execute).
+
+1. **documents** — ⚠️ **parcial / gap aceite**. Política `Users can manage own
+   documents` (`20260820280000` L77) = `owner_user_id = auth.uid()` OU empregado da
+   mesma empresa (via `profiles.company_id`), FOR ALL. Mais ampla que a nova regra do
+   app (`documentos.manage` para docs da empresa; `72b3d58`). Justificação do gap:
+   - O app lê/escreve `documents` EXCLUSIVAMENTE via admin client (service_role,
+     bypass de RLS); `getPublicUrl` ausente no repo; os clientes que o têm não
+     consultam tabelas de negócio como `authenticated` (o `createClient` de
+     `lib/session.ts` só usa `auth.getUser()`). Não existe superfície direta.
+   - Espelhar `documentos.manage` em SQL duplicaria `resolveEffectivePermissions`
+     (role_key + custom_roles + override + baseline) — drift com duas fontes de
+     verdade. Sem custo/benefício enquanto não houver cliente `authenticated` direto.
+   - Mitigação a montante já aplicada: bucket `documents` privado + owner-only
+     (`20260928000000`).
+2. **service_quotes** — ✅ `20260918000000` (provider own / client do pedido) corrigido
+   em `20260929010000` para helpers SEM recursão infinita; `service_quote_items`
+   segue o parent. Espelha o `loadVisibleQuotes` do app.
+3. **audit_logs / bank_accounts / notifications** — ✅ base `20260820280000`
+   (audit_logs SELECT-only: `user_id` OU `company_id`; bank: `user_id` OU company),
+   notifications owner-only em `20260927000000` (dropped `notif_all`).
+4. **invoices / quotes / projects / personal_* / transport_documents / saas** — ✅
+   `20260820280000` (`company_id` OU `client_id`/`user_id`), políticas SELECT para
+   `saas_subscriptions`/`audit_logs`, contactos/diário/dispositivos owner-only.
+5. **comms_channels / comms_messages** — ✅ `20260821000000` + rework de DMs
+   `20260923000000` (org: `is_org_member`; DM: `is_comms_member`/`created_by`; falta de
+   policies em `comms_channel_members` corrigida com `cmm_*`).
+
+**Storage** (verificado): `documents` privado + owner-only `documents_owner_*`
+(`20260928000000`); `marketplace-evidence`/`reputation-attachments` privados +
+owner-only, `project-photos` **intencionalmente público** (fotos de obras/imóveis
+para o marketplace — ver nota M-G/I) com owner-only adicional (`20260929040000`).
+Apps/móvel/saúde stream via admin client, nunca `getPublicUrl`.
+
+**Grants (verificado)**: série `20260929*` revogou anon/authenticated do superfície
+indevida (95 tabelas + tables zero-policy + `truncate/references/trigger` +
+EXECUTE de functions). `service_role` mantém permissões completas (runtime).
+
+Conclusão: RLS em estado sólido; o único hiato (RBAC `documentos.manage` na BD)
+é aceitável hoje — registar como pendente se um dia existir cliente `authenticated`
+direto a tabelas de negócio.
 
 ## Fiabilidade de escrita
 
@@ -121,8 +158,9 @@ Há neste repositório, criar as policy functions equivalentes:
 
 - **Fluxo de convite real** para faturção a novos clientes (hoje o email cria uma
   conta fantasma sem onboarding) — eventualmente migrar para email com link de registo.
-- **Auditoria da camada RLS** é a continuação natural (requer acesso à BD / CLI
-  Supabase); este documento serve de checklist de policies a garantir.
+- **Auditoria da camada RLS** — já executada de forma estática (ver §"RLS que a BD
+  deve espelhar"): 4/5 espelhados; `documents` é gap aceite. Rever se algum dia
+  existir cliente `authenticated` direto a tabelas de negócio.
 - `PortugueseAuthAdapter`: em dev/demo o stub continua a autenticar — por design,
   fechar se um ambiente pré-prod ficar ligado a prod.
 - Ruído de console pré-existente nos testes de faturação (projeção fiscal lê
