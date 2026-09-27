@@ -64,7 +64,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `919d2a0` | **Guarda do caminho RBAC legacy** — grants colon mortos (ver "Caminho RBAC legacy — colon") |
 | `1e1d3b5` | **Fronteira web** — `X-Powered-By` desligado + espelho real dos headers/`public`/dev-only (ver "Fronteira web — headers e guardas dev-only") |
 | `822e273` | **Cobertura RLS por tabela** — nenhuma tabela nova nasce sem RLS (ver "Cobertura RLS por tabela") |
-| `(novo commit)` | **SECURITY DEFINER** — guarda de `search_path` com `pg_temp` (ver "SECURITY DEFINER — search_path") |
+| `4e5eb3f` | **SECURITY DEFINER** — guarda de `search_path` com `pg_temp` (ver "SECURITY DEFINER — search_path") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
