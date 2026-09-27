@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   const ctx = await getSessionContext();
   if (!ctx) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
-  if (!hasPermission(ctx.permissions, "health.manage")) {
+  if (!hasPermission(ctx.permissions, "saude.manage")) {
     return NextResponse.json({ error: "Sem permissão para gerir consentimentos" }, { status: 403 });
   }
 
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
   const ctx = await getSessionContext();
   if (!ctx) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
-  if (!hasPermission(ctx.permissions, "health.view")) {
+  if (!hasPermission(ctx.permissions, "saude.view")) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 

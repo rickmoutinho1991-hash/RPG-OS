@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 139 ficheiros / 1878 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 142 ficheiros / 1887 testes.
 
 ## Eixos de tenant
 
@@ -53,7 +53,8 @@ permissões (`hasPermission` de `@rpg/core`).
 | `4ba3d9e` | **P1** obras: 4 mutações escreviam em qualquer projeto por UUID sem sessão/ownership (`assertProjectAccess`); clientes: `getClientById` escopava projects/quotes |
 | `72b3d58` | 6 P2 (ver abaixo) |
 | `448522d` | **mercado** — 3 gaps: `api/mercado/pedido` sem `marketplace.requests.create`; auto-cota (dono cotava o próprio pedido); auto-aceitação (dono aceitava própria proposta → auto-contrato/pagamento) |
-| (← varredura de rotas API) | **P0 webhooks + 6 P1 + 3 P2** em rotas API (ver "Varredura de rotas API") |
+| `1fd40d9` | **P0 webhooks + 6 P1 + 3 P2** em rotas API (ver "Varredura de rotas API") |
+| (← alinhamentos pós-varredura) | **2 P2** (categories, workflows) + **saude** alinhada às permissões declaradas (ver "Alinhamentos pós-varredura") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -124,15 +125,31 @@ podia ser cacheado. Agora `401`, com `export const dynamic = "force-dynamic"`. T
 anonimização → "erasure parcial" era reportada como sucesso (violação RGPD Art. 17).
 Erros agora coletados; qualquer falha → 500. Testes: 2.
 
+## Alinhamentos pós-varredura (2 P2 + saude)
+
+**P2 — `api/categories`**: o catálogo público (categorias do mercado) era lido via
+`createAdminClient` (service_role). A RLS já concede SELECT a anon/authenticated
+(`categories_read_active`, `active = true`); trocado para o cliente de sessão (RLS
+respeitada) — removida a escalada desnecessária. Testes: 2.
+
+**P2 — `api/admin/workflow-definitions`**: o gate da rota aceitava `admin.view` OU
+`workflows.manage`, mas `getWorkflowDefinitionsAction` exige exclusivamente
+`workflows.manage` → um ator com só `admin.view` passava na rota e recebia `[]`
+silencioso. Gate alinhado → 403 explícito. Testes: 3.
+
+**P3 — `api/saude/*` (renomeação de permissões)**: as 9 rotas gateavam com
+`health.view`/`health.manage` — permissões que NÃO existem (módulo registado `saude`;
+baseline concede `saude.view`; `saude.manage` não existe em nenhum papel). Renomeadas
+para o espaço declarado `saude.*`:
+- Vistas (`saude.view`, baseline para todos os autenticados) reativadas — todos os
+  queries são self-scoped (`person_id = ator`), sem exposição cross-tenant;
+- Mutações (`saude.manage`) continuam **fail-closed** (403) enquanto não existir grant
+  — reativar é decisão de produto (definir `saude.manage` num papel) e fica registada.
+Testes: 4 (connections GET/POST).
+
 **Aceites documentados (sem fix)**:
-- **`api/saude/*`**: permissões `health.view`/`health.manage` NÃO existem (módulo
-  registado como `saude`, baseline `saude.view`). Todas as rotas dão 403 a quem não
-  tenha `*` — falha fechada, módulo morto. Corrigir o nome das permissões é decisão de
-  produto (reativa o módulo); registar quando houver roadmap.
 - **`api/mobilidade/*`**: stubs com dados mock hardcoded; `connectionId` nunca validado
   contra a BD. Em produção os fake providers falham fechado (`ALLOW_FAKE_PROVIDERS`).
-- **`api/categories`**: usa `createAdminClient` para catálogo global já protegido por
-  RLS de leitura pública (escalada desnecessária, sem impacto real).
 - **Arquitectura**: existem 2 caminhos de auth nas rotas — `requireAuth()`
   (`lib/supabase/auth.ts`, single-company legacy) e `getSessionContext()`
   (`lib/session.ts`, org + permissões). Nenhuma rota administrativa deve usar o

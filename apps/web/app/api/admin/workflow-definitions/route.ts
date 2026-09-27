@@ -11,9 +11,7 @@ export async function GET() {
   if (!ctx)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const canManage =
-    hasPermission(ctx.permissions, "workflows.manage") ||
-    hasPermission(ctx.permissions, "admin.view");
+  const canManage = hasPermission(ctx.permissions, "workflows.manage");
   if (!canManage)
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
