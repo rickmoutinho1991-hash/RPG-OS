@@ -62,7 +62,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `256f022` | **Reativação `saude.manage`** — grant na baseline pessoal self-scoped; testes (ver "Reativação saude.manage") |
 | `908bd4c` | **Storage RLS espelhado** — guarda estática de buckets/policies storage (ver "Revisão RLS — storage") |
 | `919d2a0` | **Guarda do caminho RBAC legacy** — grants colon mortos (ver "Caminho RBAC legacy — colon") |
-| `(novo commit)` | **Fronteira web** — `X-Powered-By` desligado + espelho real dos headers/`public`/dev-only (ver "Fronteira web — headers e guardas dev-only") |
+| `1e1d3b5` | **Fronteira web** — `X-Powered-By` desligado + espelho real dos headers/`public`/dev-only (ver "Fronteira web — headers e guardas dev-only") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
