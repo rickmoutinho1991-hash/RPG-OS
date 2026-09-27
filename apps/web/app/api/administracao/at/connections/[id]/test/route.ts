@@ -26,7 +26,7 @@ export async function POST(
 
   const { id } = await params;
   try {
-    const result = await runAtTestHandshake(id);
+    const result = await runAtTestHandshake(id, ctx.user.id);
     const status = result.connectivity?.status ?? "UNKNOWN";
     const http = result.readiness !== "READY" ? 502 : status === "CONNECTED" ? 200 : status === "UNKNOWN" ? 504 : 502;
     return applyRateLimitHeaders(

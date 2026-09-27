@@ -54,7 +54,10 @@ interface ConnectionMeta {
  * Executa o handshake AT TEST controlado. Server-side only: company, tenant,
  * environment e credenciais derivam da sessão + DB — nunca do browser.
  */
-export async function runAtTestHandshake(connectionId: string): Promise<AtHandshakeResult> {
+export async function runAtTestHandshake(
+  connectionId: string,
+  actorId?: string,
+): Promise<AtHandshakeResult> {
   const correlationId = randomUUID();
   const blocked = (reasons: AtReadinessReason[]): AtHandshakeResult => ({
     readiness: "BLOCKED",
@@ -68,6 +71,7 @@ export async function runAtTestHandshake(connectionId: string): Promise<AtHandsh
 
   // 1-3. Autorização server-side (qualquer exceção → AUTHORIZATION_REQUIRED).
   let companyId: string | null = null;
+  let resolvedActorId: string | null = null;
   try {
     const session = await getSessionContext();
     if (!session || !hasPermission(session.permissions, "fiscal.manage")) {
@@ -76,6 +80,7 @@ export async function runAtTestHandshake(connectionId: string): Promise<AtHandsh
     const user = await getCurrentUser();
     if (!user?.companyId) return blocked(["AUTHORIZATION_REQUIRED"]);
     companyId = user.companyId;
+    resolvedActorId = actorId ?? user.id;
   } catch {
     return blocked(["AUTHORIZATION_REQUIRED"]);
   }
@@ -137,7 +142,7 @@ export async function runAtTestHandshake(connectionId: string): Promise<AtHandsh
     testGateEnabled: AT_TEST_ENABLED,
   });
   if (readiness.status !== "READY") {
-    await auditBlocked(connectionId, companyId, correlationId, readiness.reasons);
+    await auditBlocked(connectionId, companyId, correlationId, readiness.reasons, resolvedActorId);
     return {
       readiness: "BLOCKED",
       readinessReasons: readiness.reasons,
@@ -150,7 +155,7 @@ export async function runAtTestHandshake(connectionId: string): Promise<AtHandsh
   }
 
   // 8. READY → delegar ao handshake real (com os seus próprios gates).
-  const connectivity = await testATConnection(connectionId);
+  const connectivity = await testATConnection(connectionId, resolvedActorId ?? undefined);
   return {
     readiness: "READY",
     readinessReasons: [],
@@ -168,10 +173,12 @@ async function auditBlocked(
   companyId: string | null,
   correlationId: string,
   reasons: AtReadinessReason[],
+  actorId: string | null,
 ): Promise<void> {
+  if (!actorId) return;
   try {
     await recordAuditEvent({
-      userId: "system",
+      userId: actorId,
       companyId,
       organizationId: null,
       action: "at.handshake.blocked",

@@ -68,13 +68,17 @@ export function buildInvoicesQueryEnvelope(nif: string, wfa: { username: string;
   return buildSoapEnvelope("Invoices", header, body);
 }
 
-export async function testATConnection(connectionId: string): Promise<AtConnectivityResult> {
+export async function testATConnection(
+  connectionId: string,
+  actorId?: string,
+): Promise<AtConnectivityResult> {
   const started = Date.now();
   const correlationId = randomUUID();
   async function audit(result: string, errorCode?: string): Promise<void> {
+    if (!actorId) return;
     try {
       await recordAuditEvent({
-        userId: "system",
+        userId: actorId,
         companyId: null,
         organizationId: null,
         action:
