@@ -65,7 +65,7 @@ export async function loadLifeData(ctx: FinanceTenantContext): Promise<LifeConte
   const supabase = createAdminClient();
   const finance = await loadFinanceTenantData(ctx);
 
-  const [eventsRes, tasksRes, docsRes, remindersRes] = await Promise.all([
+  const [eventsRes, tasksRes, remindersRes] = await Promise.all([
     supabase
       .from("calendar_events")
       .select("id,title,start_time,end_time,event_type,status,priority,is_completed")
@@ -75,23 +75,23 @@ export async function loadLifeData(ctx: FinanceTenantContext): Promise<LifeConte
       .select("id,title,status,priority,due_date,assignee_id")
       .eq("assignee_id", ctx.userId),
     supabase
-      .from("documents")
-      .select("id,type,file_name,status,expires_at,company_id,owner_user_id")
-      .order("expires_at", { ascending: true }),
-    supabase
       .from("personal_reminders")
       .select("*")
       .eq("user_id", ctx.userId),
   ]);
 
-  let docsResolved = docsRes;
-  if (ctx.companyId) {
-    docsResolved = await supabase
-      .from("documents")
-      .select("id,type,file_name,status,expires_at,company_id,owner_user_id")
-      .or(`company_id.eq.${ctx.companyId},owner_user_id.eq.${ctx.userId}`)
-      .order("expires_at", { ascending: true });
-  }
+  // Documentos: sempre escopados. Com empresa, company_id do perfil OU
+  // owner_user_id; sem empresa, apenas os do próprio utilizador (fail-closed,
+  // nunca query global).
+  const docsBaseQuery = supabase
+    .from("documents")
+    .select("id,type,file_name,status,expires_at,company_id,owner_user_id")
+    .order("expires_at", { ascending: true });
+  const docsResolved = ctx.companyId
+    ? await docsBaseQuery.or(
+        `company_id.eq.${ctx.companyId},owner_user_id.eq.${ctx.userId}`,
+      )
+    : await docsBaseQuery.eq("owner_user_id", ctx.userId);
 
   // Reputação (reclamações, recomendações, elogios e avaliações) — para o
   // assistente responder às perguntas de reputação com dados reais do tenant.

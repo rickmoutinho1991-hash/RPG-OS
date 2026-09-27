@@ -131,26 +131,40 @@ export async function criarEmpresaAction(
       }
 
       if (repUserId) {
-        await supabase.from("profiles").upsert(
-          {
-            user_id: repUserId,
-            name: repNome,
-            company_id: company.id,
-            tax_number: taxNumber,
-          },
-          { onConflict: "user_id" },
-        );
+        // Hardening: nunca re-apontar um perfil existente para uma empresa
+        // nova. Se o representante já tem conta (perfil com ou sem empresa),
+        // recusar — a associação do representante faz-se pela própria conta.
+        // Impede que um registo anónimo seqüestre um utilizador existente,
+        // rebatendo profiles.company_id / tax_number e criando um lugar de
+        // colaborador na empresa do atacante.
+        const { data: existingProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", repUserId)
+          .maybeSingle();
 
-        await supabase.from("company_employees").upsert(
-          {
-            company_id: company.id,
-            user_id: repUserId,
-            job_title: "Representante Legal / Administrador",
-            department: "Direção",
-            status: "ACTIVE",
-          },
-          { onConflict: "company_id,user_id" },
-        );
+        if (existingProfile) {
+          return {
+            success: false,
+            error:
+              "O representante indicado já tem conta no RPG-OS. A associação à empresa é feita pela própria conta.",
+          };
+        }
+
+        await supabase.from("profiles").insert({
+          user_id: repUserId,
+          name: repNome,
+          company_id: company.id,
+          tax_number: taxNumber,
+        });
+
+        await supabase.from("company_employees").insert({
+          company_id: company.id,
+          user_id: repUserId,
+          job_title: "Representante Legal / Administrador",
+          department: "Direção",
+          status: "ACTIVE",
+        });
       }
     }
 
