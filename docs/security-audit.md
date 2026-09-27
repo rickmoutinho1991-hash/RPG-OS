@@ -56,7 +56,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `1fd40d9` | **P0 webhooks + 6 P1 + 3 P2** em rotas API (ver "Varredura de rotas API") |
 | `9477820` | **2 P2** (categories, workflows) + **saude** alinhada às permissões declaradas (ver "Alinhamentos pós-varredura") |
 | `2b7ef0f` | backfill do hash na tabela |
-| `(novo commit)` | **varredura de permissões usadas vs concedidas** + limite 8 KiB em `api/memories` (ver "Varredura de permissões") |
+| `e078c9e` | **varredura de permissões usadas vs concedidas** + limite 8 KiB em `api/memories` (ver "Varredura de permissões") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
