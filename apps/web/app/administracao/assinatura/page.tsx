@@ -76,6 +76,7 @@ export default async function AdministracaoAssinaturaPage() {
       plan={plan}
       subscription={typedSubscription}
       revenueData={revenueData}
+      ledgerEntries={revenueData.lines}
       organizationName={ctx.organization.name}
     />
   );

@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { planLimitStatus, planLimitMessage, planLimit, planLimitRemaining, planLimitPercentage } from "@rpg/core";
-import { computeRevenueCenter, type LedgerLine } from "@rpg/core";
 import type { RevenueCenterData } from "@/lib/revenue/center";
 
 interface DatabaseSubscription {
@@ -37,48 +35,12 @@ interface AssinaturaClientProps {
   };
   subscription: DatabaseSubscription;
   revenueData: RevenueCenterData;
+  ledgerEntries: RevenueCenterData["lines"];
   organizationName: string;
 }
 
-export function AdministracaoAssinaturaClient({ plan, subscription, revenueData, organizationName }: AssinaturaClientProps) {
-  const [ledgerEntries, setLedgerEntries] = useState<LedgerLine[]>([]);
-  const [billingSummary, setBillingSummary] = useState(revenueData.metrics);
-
-  useEffect(() => {
-    const loadData = async () => {
-      const supabase = (await import("@/lib/supabase/admin")).createAdminClient();
-      const orgId = subscription.organization_id;
-
-      const { data: ledger, error: ledgerError } = await supabase
-        .from("revenue_ledger_entries")
-        .select("*")
-        .eq("organization_id", orgId)
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (ledger && !ledgerError) {
-        const rows: LedgerLine[] = ledger.map((row) => ({
-          id: String(row.id),
-          organizationId: String(row.organization_id),
-          grossCents: Number(row.gross_cents),
-          feeCents: Number(row.fee_cents),
-          netCents: Number(row.net_cents),
-          feeCollectedCents: 0,
-          basisPoints: 0,
-          feeRefundedCents: 0,
-          status: (row.status as LedgerLine["status"]) || "PENDING",
-          createdAt: String(row.created_at),
-          updatedAt: String(row.updated_at),
-          sourceType: row.source_type,
-        }));
-        const metrics = computeRevenueCenter(rows);
-        setBillingSummary(metrics);
-        setLedgerEntries(rows);
-      }
-    };
-
-    loadData();
-  }, [subscription.organization_id]);
+export function AdministracaoAssinaturaClient({ plan, subscription, revenueData, ledgerEntries, organizationName }: AssinaturaClientProps) {
+  const billingSummary = revenueData.metrics;
 
   const annualPrice =
     subscription.billing_interval === "YEAR"
@@ -216,7 +178,7 @@ export function AdministracaoAssinaturaClient({ plan, subscription, revenueData,
           <p className="text-sm text-muted">Sem registos de ledger.</p>
         ) : (
           <div className="space-y-2 text-sm">
-            {ledgerEntries.map((entry, idx) => (
+            {ledgerEntries.slice(0, 10).map((entry, idx) => (
               <div key={entry.id} className="p-2 rounded border-b">
                 <div className="flex justify-between align-baseline">
                   <span>
