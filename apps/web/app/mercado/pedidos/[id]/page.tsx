@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/session";
 import { MercadoDetail } from "./MercadoDetail";
@@ -69,8 +69,4 @@ export default async function MercadoPedidoPage({ params }: PageProps) {
       currentUserId={ctx.user.id}
     />
   );
-}
-
-function redirect(href: string) {
-  return notFound();
 }

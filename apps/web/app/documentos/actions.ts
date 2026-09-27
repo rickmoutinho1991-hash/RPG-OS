@@ -17,7 +17,6 @@ export interface DocumentItem {
   status: string;
   ownerName: string;
   ownerEmail: string;
-  fileUrl?: string;
   issuedAt?: string;
   expiresAt?: string;
   uploadedAt: string;

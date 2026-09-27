@@ -175,16 +175,6 @@ export default async function DocumentosPage({
                     <td>
                       <strong>{d.fileName}</strong>
                       <div style={{ fontSize: "11px", color: "var(--muted)" }}>{(d.fileSize / (1024 * 1024)).toFixed(1)} MB • {d.mimeType}</div>
-                      {d.fileUrl && (
-                        <a
-                          href={d.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{ fontSize: "11px", color: "#2563eb", textDecoration: "underline", marginTop: "2px", display: "inline-block" }}
-                        >
-                          Abrir Ficheiro ↗
-                        </a>
-                      )}
                     </td>
                     <td><span className="tag-badge">{d.category}</span></td>
                     <td>
