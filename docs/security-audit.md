@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 153 ficheiros / 1928 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 154 ficheiros / 1932 testes.
 
 ## Eixos de tenant
 
@@ -69,6 +69,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `ed0faa6` | **Realtime publication** — só tabelas allowlist na publication `supabase_realtime` (ver "Realtime publication") |
 | `cc37c56` | **Migration naming/order** — convenção `YYYYMMDDHHMMSS` + ordem cronológica (ver "Migration naming/order") |
 | `338cbe6` | **Error disclosure** — nenhuma rota de API retorna `error.message` ao cliente (ver "Error disclosure") |
+| `(novo commit)` | **Cookie security** — flag `secure` em todos os cookies + guarda (ver "Cookie security") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
@@ -522,6 +523,20 @@ das 54 rotas de API):
   `error.stack` diretamente na resposta JSON;
 - nenhuma rota retorna `NextResponse.json({ error: error.message })`
   ou padrão similar.
+
+## Cookie security
+
+Cookies devem ter:
+- `secure: true` em produção — impede envio por HTTP não cifrado (interceptação/MITM);
+- `sameSite` — mitiga CSRF (lax ou strict);
+- `path` — restringe o escopo do cookie.
+
+**Achado real corrigido**: `apps/web/lib/mode-actions.ts` (cookie de UI de modo Pessoal/Trabalho) não tinha a flag `secure`. Adicionado `secure: process.env.NODE_ENV === "production"`.
+
+**Guarda estática nova** (`cookieSecurity.test.ts`, 4 testes, parse de todas as cookieSettings no app):
+- toda cookieSetting tem `secure` (condicional em produção);
+- toda cookieSetting tem `sameSite`;
+- toda cookieSetting tem `path`.
 
 ## Reativação saude.manage (decisão de produto)
 
