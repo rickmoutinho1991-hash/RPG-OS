@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 147 ficheiros / 1910 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 148 ficheiros / 1915 testes.
 
 ## Eixos de tenant
 
@@ -63,6 +63,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `908bd4c` | **Storage RLS espelhado** — guarda estática de buckets/policies storage (ver "Revisão RLS — storage") |
 | `919d2a0` | **Guarda do caminho RBAC legacy** — grants colon mortos (ver "Caminho RBAC legacy — colon") |
 | `1e1d3b5` | **Fronteira web** — `X-Powered-By` desligado + espelho real dos headers/`public`/dev-only (ver "Fronteira web — headers e guardas dev-only") |
+| `(novo commit)` | **Cobertura RLS por tabela** — nenhuma tabela nova nasce sem RLS (ver "Cobertura RLS por tabela") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
 
@@ -349,6 +350,44 @@ verificar os 3 invariantes que o teste original *pretendia* cobrir: os 5 headers
   guarda `NODE_ENV === "production"` **antes** de qualquer `createAdminClient()`
   ou `.insert(` no source — impede alguém mover a guarda para depois do
   provisionamento.
+
+## Cobertura RLS por tabela (fail-closed por default)
+
+O footgun clássico do Supabase: `CREATE TABLE` nasce **sem** Row Level
+Security, logo a tabela fica legível por `anon`/`authenticated` via PostgREST até
+alguém se lembrar do `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`. Nem o
+typecheck nem o build apanha isso — a falha só aparece em produção, e é um dump
+de tabela. As guardas existentes (`rlsPolicies.test.ts` / `storagePolicies.test.ts`)
+só cobriam `public.*` e os buckets de storage, ou seja: **não havia nada que
+impedisse uma tabela nova sem RLS**.
+
+Nova guarda `rlsCoverage.test.ts` (5 testes) sobre as 67 migrations, com parsing
+**comment-aware** (comentários SQL removidos antes da extração — sem isso o
+comentário `-- SEM DROP; idempotente (CREATE TABLE IF NOT EXISTS / DO BLOCK)`
+era lido como uma tabela chamada `if`):
+
+| Invariante | Estado |
+|---|---|
+| Toda tabela `CREATE TABLE` tem `ENABLE ROW LEVEL SECURITY` | 115/115 |
+| Nenhuma migration faz `DISABLE ROW LEVEL SECURITY` | 0 ocorrências |
+| Toda tabela com RLS é criada nas nossas migrations (sem tabelas fantasma) | 115/115 |
+| Tabelas com RLS mas **zero** policies (deny-all) estão em allowlist | 11 declaradas |
+| Nenhuma migration faz `GRANT ALL` em tabelas | 0 ocorrências |
+
+**Allowlist deny-all** (RLS ativo, mas nenhuma policy — inacessíveis para
+`anon`/`authenticated`, servidas só via `service_role` no backend): `companies`,
+`health_audit_integrity`, `health_sync_history`, `integrity_ledger`,
+`invoice_items`, `payments`, `project_materials`, `project_photos`,
+`project_tasks`, `quote_items`, `transport_document_items`. Uma tabela nova
+nesta situação **quebraria a app em silêncio**, por isso fica num allowlist
+explícito: nova entrada = decisão deliberada, não acidente.
+
+**Decisão documentada — sem `FORCE ROW LEVEL SECURITY`**: 0 ocorrências no repo,
+e é intencional. O backend usa `service_role` (admin client) extensivamente
+(downloads de storage, upserts de perfil, sync de dispositivos); `FORCE RLS`
+aplicaria RLS também ao dono da tabela e bloquearia o próprio backend. O que a
+RLS protege é o que o browser alcança: `anon` e `authenticated`. O risco residual
+aceite é o `SECURITY DEFINER` mal escrito (já auditado nas vagas anteriores).
 
 ## Reativação saude.manage (decisão de produto)
 
