@@ -70,7 +70,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `cc37c56` | **Migration naming/order** — convenção `YYYYMMDDHHMMSS` + ordem cronológica (ver "Migration naming/order") |
 | `338cbe6` | **Error disclosure** — nenhuma rota de API retorna `error.message` ao cliente (ver "Error disclosure") |
 | `f8e8ae0` | **Cookie security** — flag `secure` em todos os cookies + guarda (ver "Cookie security") |
-| `(novo commit)` | **Rate limiting coverage** — todas as mutações com rate limit (ver "Rate limiting coverage") |
+| `6850691` | **Rate limiting coverage** — todas as mutações com rate limit (ver "Rate limiting coverage") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
