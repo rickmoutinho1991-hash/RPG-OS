@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionContext } from "@/lib/session";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const rlResult = rateLimit(req, 'government');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

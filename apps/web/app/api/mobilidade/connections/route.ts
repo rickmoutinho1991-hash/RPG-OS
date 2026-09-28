@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionContext } from "@/lib/session";
 import { mobilityProviderRegistry } from "@/lib/services/mobility/provider";
 import { registerDefaultMobilityProviders } from "@/lib/services/mobility/provider";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 registerDefaultMobilityProviders();
 
@@ -37,6 +38,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const rlResult = rateLimit(req, 'government');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

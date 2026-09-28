@@ -20,7 +20,7 @@ tenants (cross-tenant) e authorization**. Esta auditoria varreu **todos** os uso
   em todas as áreas restritas (administração, fiscal, workflow, plataforma).
 
 Gates em cada lote: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
-Suite no início: 127 ficheiros / 1832 testes. No fim: 154 ficheiros / 1932 testes.
+Suite no início: 127 ficheiros / 1832 testes. No fim: 155 ficheiros / 1934 testes.
 
 ## Eixos de tenant
 
@@ -70,6 +70,7 @@ permissões (`hasPermission` de `@rpg/core`).
 | `cc37c56` | **Migration naming/order** — convenção `YYYYMMDDHHMMSS` + ordem cronológica (ver "Migration naming/order") |
 | `338cbe6` | **Error disclosure** — nenhuma rota de API retorna `error.message` ao cliente (ver "Error disclosure") |
 | `f8e8ae0` | **Cookie security** — flag `secure` em todos os cookies + guarda (ver "Cookie security") |
+| `(novo commit)` | **Rate limiting coverage** — todas as mutações com rate limit (ver "Rate limiting coverage") |
 | `3b511df` | **CI** — workflow de gates (typecheck/lint/test/build) em push/PR, binding das 8 fases de guardas (ver "CI") |
 
 ## Fechos da última fase (6 P2, `72b3d58`)
@@ -537,6 +538,23 @@ Cookies devem ter:
 - toda cookieSetting tem `secure` (condicional em produção);
 - toda cookieSetting tem `sameSite`;
 - toda cookieSetting tem `path`.
+
+## Rate limiting coverage
+
+Mutações (POST/PUT/PATCH/DELETE) sem rate limiting são vulneráveis a:
+- **brute force** (login, validação de NIF, etc.);
+- **abuso de API** (spam de notificações, operações de marketplace);
+- **negação de serviço económica** (custo computacional por request).
+
+**Achado real**: 23 rotas de mutação (28 handlers) não tinham rate limit. Todas corrigidas com `rateLimit(request, 'categoria')` antes de qualquer lógica de auth/negócio:
+
+| Categoria | Rotas |
+|---|---|
+| `government` (30 req/min) | `governo/connections/[id]` (PUT/DELETE), `governo/connections/[id]/test` (POST), `governo/consents/[id]` (DELETE), `at/validate-nif` (POST), `mobilidade/connections` (POST), `mobilidade/connections/[id]/test` (POST), `mobilidade/consents` (POST/DELETE) |
+| `payment` (20 req/min) | `mercado/contract`, `milestone/approve`, `milestone/submit`, `oferta`, `pedido`, `quote` (POST), `sibs/mbway` (POST) |
+| `admin` (15 req/min) | `devices/push`, `devices/sync`, `memories` (POST/DELETE), `notifications`, `organizations/switch`, `rgpd/delete`, `saude/connections` (POST), `saude/connections/[id]` (PUT/DELETE), `saude/consents` (POST), `saude/consents/[id]` (DELETE) |
+
+**Guarda estática nova** (`rateLimitCoverage.test.ts`, 2 testes, parse das 54 rotas de API): toda rota com handler de mutação importa e usa `rateLimit` de `@/lib/rate-limiter`. Retorna `429` com headers `X-RateLimit-*` quando o limite é excedido.
 
 ## Reativação saude.manage (decisão de produto)
 

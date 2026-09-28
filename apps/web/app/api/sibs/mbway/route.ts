@@ -3,8 +3,15 @@ import { SibsPaymentGatewayAdapter } from "@rpg/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeAuditMetadata } from '@rpg/core';
 import { requireAuth } from "@/lib/auth/rbac";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export async function POST(request: Request) {
+  const rlResult = rateLimit(request, 'payment');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   try {
     let user;
     try {

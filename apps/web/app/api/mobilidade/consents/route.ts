@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionContext } from "@/lib/session";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export async function GET(req: NextRequest) {
   const ctx = await getSessionContext();
@@ -24,6 +25,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const rlResult = rateLimit(req, 'government');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -55,6 +62,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const rlResult = rateLimit(req, 'government');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

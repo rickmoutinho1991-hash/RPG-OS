@@ -10,6 +10,7 @@ import {
 import { getSessionContext } from "@/lib/session";
 import { SupabaseMemoryStore } from "@/lib/memory/supabaseStore";
 import { recordAuditEvent } from "@/lib/audit";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,12 @@ export async function GET() {
 
 /** Guarda/sobrescreve uma memória (key + value + kind válidos). */
 export async function POST(request: Request) {
+  const rlResult = rateLimit(request, 'admin');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
@@ -116,6 +123,12 @@ export async function POST(request: Request) {
 
 /** Apaga uma memória do utilizador autenticado. */
 export async function DELETE(request: Request) {
+  const rlResult = rateLimit(request, 'admin');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 

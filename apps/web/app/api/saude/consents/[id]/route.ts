@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/session";
 import { hasPermission } from "@rpg/core";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export async function GET(
   request: NextRequest,
@@ -41,6 +42,12 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const rlResult = rateLimit(request, 'admin');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 

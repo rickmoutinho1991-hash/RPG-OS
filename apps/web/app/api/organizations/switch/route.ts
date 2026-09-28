@@ -1,7 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export async function POST(request: Request) {
+  const rlResult = rateLimit(request, 'admin');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const { organizationId } = await request.json();
   
   if (!organizationId) {

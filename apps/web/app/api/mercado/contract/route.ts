@@ -1,7 +1,14 @@
 import { acceptQuoteAction } from "@/app/mercado/actions";
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export async function POST(request: NextRequest) {
+  const rlResult = rateLimit(request, 'payment');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   try {
     const formData = await request.formData();
     const result = await acceptQuoteAction(formData);

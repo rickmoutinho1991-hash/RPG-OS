@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionContext } from "@/lib/session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,12 @@ export async function GET() {
 
 /** Marca notificações como lidas. */
 export async function POST(request: Request) {
+  const rlResult = rateLimit(request, 'admin');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/rbac";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export async function POST(request: Request) {
+  const rlResult = rateLimit(request, 'admin');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   try {
     let currentUser;
     try {

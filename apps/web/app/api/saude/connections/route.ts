@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/session";
 import { hasPermission } from "@rpg/core";
 import { HealthProviderId, HealthConsentScope, HealthEnvironment } from "@rpg/core";
+import { rateLimit, createRateLimitHeaders } from "@/lib/rate-limiter";
 
 export async function GET() {
   const ctx = await getSessionContext();
@@ -36,6 +37,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const rlResult = rateLimit(request, 'admin');
+  const rateLimitHeaders = createRateLimitHeaders(rlResult);
+  if (!rlResult.allowed) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429, headers: rateLimitHeaders });
+  }
+
   const ctx = await getSessionContext();
   if (!ctx) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
